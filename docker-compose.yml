@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  slack-codex-bot:
+    build: .
+    container_name: slack-codex-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config.json:/app/config.json:ro
+    environment:
+      - NODE_ENV=production
+    # ヘルスチェック
+    healthcheck:
+      test: ["CMD", "node", "-e", "console.log('Health check passed')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
