@@ -5,25 +5,14 @@ import {
   CodexConfig,
   CodexOutput,
   CodexClose,
-  CodexInactivity,
 } from "../../shared/types/codex";
 import { logger } from "../../infrastructure/logger";
-
-type ActivityTimer = {
-  timer: NodeJS.Timeout;
-  lastActivity: number;
-};
 
 export class CodexService extends EventEmitter {
   private static instance: CodexService;
   private processes = new Map<ProcessKey, CodexProcess>();
-  private activityTimers = new Map<ProcessKey, ActivityTimer>();
   private inactiveProcesses = new Set<ProcessKey>(); // 非アクティブ状態のプロセスを追跡
   private outputBuffer = new Map<ProcessKey, string>(); // 出力をバッファリング
-  private realtimeTimers = new Map<ProcessKey, NodeJS.Timeout>(); // リアルタイム出力用タイマー
-  private readonly INACTIVITY_THRESHOLD = 5000; // 5秒
-  private readonly REALTIME_DELAY = 1000; // 1秒でリアルタイム出力
-
   private constructor() {
     super();
   }
@@ -41,16 +30,8 @@ export class CodexService extends EventEmitter {
     ts: string
   ): Promise<ProcessKey> => {
     const processKey = this.createProcessKey(channel, ts);
-    console.log("=== STARTING CODEX PROCESS ===");
-    console.log("ProcessKey:", processKey);
-    console.log("Message:", message);
-    console.log("Channel:", channel);
-    console.log("TS:", ts);
-    console.log("==============================");
-
     logger.info(`Starting Codex process for ${processKey}`, { message });
 
-    // 既存プロセス停止
     await this.stopProcess(processKey);
 
     const config: CodexConfig = {
@@ -64,31 +45,15 @@ export class CodexService extends EventEmitter {
 
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
-      console.log("=== CODEX DATA EVENT ===");
-      console.log("ProcessKey:", processKey);
-      console.log("Data length:", data?.length || 0);
-      console.log("Data preview:", data?.substring(0, 100) || "No data");
-      console.log("=======================");
-
       // 出力をバッファに蓄積
       const currentBuffer = this.outputBuffer.get(processKey) || "";
       const newBuffer = currentBuffer + data;
       this.outputBuffer.set(processKey, newBuffer);
-
-      console.log("=== CALLING SCHEDULE REALTIME OUTPUT ===");
-      // リアルタイム出力のためのデバウンスタイマー
-      this.scheduleRealtimeOutput(processKey, channel, ts);
-
-      this.resetActivityTimer(processKey, channel, ts);
     });
 
     codexProcess.on(
       "exit",
       (exitCode: { exitCode: number; signal?: number }) => {
-        // リアルタイムタイマーをクリア
-        this.clearRealtimeTimer(processKey);
-
-        // プロセス終了時にバッファされた出力を発火
         const bufferedOutput = this.outputBuffer.get(processKey) || "";
         if (bufferedOutput) {
           const output: CodexOutput = { channel, ts, output: bufferedOutput };
@@ -96,8 +61,7 @@ export class CodexService extends EventEmitter {
         }
 
         const close: CodexClose = { channel, ts, code: exitCode.exitCode };
-        this.clearActivityTimer(processKey);
-        this.outputBuffer.delete(processKey); // バッファをクリーンアップ
+        this.outputBuffer.delete(processKey);
         this.processes.delete(processKey);
         this.emit("close", close);
       }
@@ -105,17 +69,12 @@ export class CodexService extends EventEmitter {
 
     await codexProcess.start(message);
 
-    // アクティビティタイマーを開始
-    this.resetActivityTimer(processKey, channel, ts);
-
     return processKey;
   };
 
   stopProcess = async (processKey: ProcessKey): Promise<boolean> => {
     const codexProcess = this.processes.get(processKey);
     if (codexProcess) {
-      this.clearActivityTimer(processKey);
-      this.clearRealtimeTimer(processKey);
       await codexProcess.stop();
       this.processes.delete(processKey);
       return true;
@@ -129,7 +88,6 @@ export class CodexService extends EventEmitter {
       this.stopProcess(key)
     );
     await Promise.all(stopPromises);
-    this.clearAllActivityTimers();
   };
 
   isProcessRunning = (processKey: ProcessKey): boolean => {
@@ -152,109 +110,6 @@ export class CodexService extends EventEmitter {
 
   createProcessKey = (channel: string, ts: string): ProcessKey => {
     return `${channel}-${ts}` as ProcessKey;
-  };
-
-  private resetActivityTimer = (
-    processKey: ProcessKey,
-    channel: string,
-    ts: string
-  ): void => {
-    // 既存のタイマーをクリア
-    this.clearActivityTimer(processKey);
-
-    // 非アクティブ状態をクリア
-    this.inactiveProcesses.delete(processKey);
-
-    // 新しいタイマーを設定
-    const timer = setTimeout(() => {
-      this.inactiveProcesses.add(processKey); // 非アクティブ状態に追加
-
-      // リアルタイムタイマーをクリア（重複防止）
-      this.clearRealtimeTimer(processKey);
-
-      // バッファされた出力を発火（非アクティブ時のため、この時点でも出力を表示）
-      const bufferedOutput = this.outputBuffer.get(processKey) || "";
-      if (bufferedOutput) {
-        const output: CodexOutput = { channel, ts, output: bufferedOutput };
-        this.emit("output", output);
-      }
-
-      const inactivity: CodexInactivity = { channel, ts };
-      this.emit("inactivity", inactivity);
-    }, this.INACTIVITY_THRESHOLD);
-
-    this.activityTimers.set(processKey, {
-      timer,
-      lastActivity: Date.now(),
-    });
-  };
-
-  private clearActivityTimer = (processKey: ProcessKey): void => {
-    const activityTimer = this.activityTimers.get(processKey);
-    if (activityTimer) {
-      clearTimeout(activityTimer.timer);
-      this.activityTimers.delete(processKey);
-    }
-    // 非アクティブ状態もクリア
-    this.inactiveProcesses.delete(processKey);
-    // バッファもクリア
-    this.outputBuffer.delete(processKey);
-    // リアルタイムタイマーもクリア
-    this.clearRealtimeTimer(processKey);
-  };
-
-  private scheduleRealtimeOutput = (
-    processKey: ProcessKey,
-    channel: string,
-    ts: string
-  ): void => {
-    console.log("=== SCHEDULE REALTIME OUTPUT ===");
-    console.log("ProcessKey:", processKey);
-    console.log("Channel:", channel);
-    console.log("TS:", ts);
-
-    // 既存のリアルタイムタイマーをクリア
-    this.clearRealtimeTimer(processKey);
-
-    // 新しいタイマーを設定
-    const timer = setTimeout(() => {
-      console.log("=== REALTIME TIMER FIRED ===");
-      console.log("ProcessKey:", processKey);
-
-      const bufferedOutput = this.outputBuffer.get(processKey) || "";
-      console.log("Buffered output length:", bufferedOutput?.length || 0);
-
-      if (bufferedOutput) {
-        const output: CodexOutput = { channel, ts, output: bufferedOutput };
-        console.log("=== EMITTING OUTPUT EVENT ===");
-        this.emit("output", output);
-      } else {
-        console.log("=== NO BUFFERED OUTPUT TO EMIT ===");
-      }
-
-      this.realtimeTimers.delete(processKey);
-    }, this.REALTIME_DELAY);
-
-    this.realtimeTimers.set(processKey, timer);
-    console.log("=== REALTIME TIMER SET ===");
-  };
-
-  private clearRealtimeTimer = (processKey: ProcessKey): void => {
-    const timer = this.realtimeTimers.get(processKey);
-    if (timer) {
-      clearTimeout(timer);
-      this.realtimeTimers.delete(processKey);
-    }
-  };
-
-  private clearAllActivityTimers = (): void => {
-    this.activityTimers.forEach((timer) => clearTimeout(timer.timer));
-    this.activityTimers.clear();
-    this.inactiveProcesses.clear();
-    this.outputBuffer.clear(); // 全バッファをクリア
-    // 全リアルタイムタイマーもクリア
-    this.realtimeTimers.forEach((timer) => clearTimeout(timer));
-    this.realtimeTimers.clear();
   };
 
   isProcessInactive = (processKey: ProcessKey): boolean => {

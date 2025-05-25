@@ -27,14 +27,6 @@ export class CodexProcess extends EventEmitter {
         message,
       ];
 
-      logger.debug("Codex command args:", args);
-
-      console.log("=== SPAWNING CODEX PROCESS ===");
-      console.log("Command: codex");
-      console.log("Args:", args);
-      console.log("ProcessKey:", this.processKey);
-      console.log("===============================");
-
       this.process = pty.spawn("codex", args, {
         ...CONSTANTS.PTY_CONFIG,
         env: {
@@ -45,8 +37,6 @@ export class CodexProcess extends EventEmitter {
 
       this.process.onData(this.handleData);
       this.process.onExit(this.handleExit);
-
-      console.log("=== PROCESS HANDLERS SET ===");
 
       // プロセスが正常に開始されたことを確認
       setTimeout(() => {
@@ -86,14 +76,6 @@ export class CodexProcess extends EventEmitter {
   };
 
   private handleData = (data: string): void => {
-    console.log("=== CODEX PROCESS HANDLE DATA ===");
-    console.log("ProcessKey:", this.processKey);
-    console.log("Raw data length:", data?.length || 0);
-    console.log("Raw data preview:", data?.substring(0, 100) || "No data");
-    console.log("=================================");
-
-    logger.debug(`Codex raw output [${this.processKey}]:`, data.trim());
-
     // 生データをバッファに追加
     this.outputBuffer += data;
 
@@ -101,29 +83,18 @@ export class CodexProcess extends EventEmitter {
     const processedOutput = processCodexOutput(this.outputBuffer);
     const cleanedOutput = cleanCodexOutput(processedOutput);
 
-    console.log("=== PROCESSING OUTPUT ===");
-    console.log("Output buffer length:", this.outputBuffer.length);
-    console.log("Processed output length:", processedOutput.length);
-    console.log("Cleaned output length:", cleanedOutput.length);
-    console.log("Last emitted length:", this.lastEmittedLength);
+    logger.debug(`Codex processed output [${this.processKey}]:`, cleanedOutput);
 
     // 新しい出力のみを抽出してイベント発火
     if (cleanedOutput.length > this.lastEmittedLength) {
       const newOutput = cleanedOutput.slice(this.lastEmittedLength);
       this.lastEmittedLength = cleanedOutput.length;
 
-      console.log("=== EMITTING DATA EVENT ===");
-      console.log("New output length:", newOutput.length);
-      console.log("New output preview:", newOutput.substring(0, 100));
-      console.log("===========================");
+      logger.debug(`Codex emitting data event [${this.processKey}]:`, newOutput);
 
-      logger.debug(
-        `Codex processed output [${this.processKey}]:`,
-        newOutput.trim()
-      );
       this.emit("data", newOutput);
     } else {
-      console.log("=== NO NEW OUTPUT TO EMIT ===");
+      logger.debug(`Codex processed output [${this.processKey}]:`, cleanedOutput);
     }
   };
 
