@@ -59,22 +59,7 @@ export const handleStopButton = async ({
       await client.chat.update({
         channel: channel.id,
         ts: message.ts,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: formatCodeBlock(truncateOutput(currentOutput)),
-            },
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "⏹️ 停止しました",
-            },
-          },
-        ],
+        blocks: SlackBlockService.createStoppedBlock(currentOutput),
       });
 
       outputBuffer.delete(processKey);

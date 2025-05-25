@@ -1,3 +1,5 @@
+import { formatCodexForSlack } from "./codex";
+
 export const truncateOutput = (
   output: string,
   maxLength: number = 2900
@@ -14,3 +16,6 @@ export const formatCodeBlock = (
 ): string => {
   return `\`\`\`${language}\n${content}\n\`\`\``;
 };
+
+// 後方互換性のためのエイリアス
+export const formatCodexOutput = formatCodexForSlack;

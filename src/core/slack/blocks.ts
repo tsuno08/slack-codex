@@ -1,4 +1,5 @@
 import { Block, KnownBlock } from "@slack/types";
+import { formatCodexForSlack, extractCodexCommand } from "../../shared/utils";
 
 export class SlackBlockService {
   static createLoadingBlock = (): (Block | KnownBlock)[] => [
@@ -15,15 +16,30 @@ export class SlackBlockService {
     output: string,
     isRunning: boolean = true
   ): (Block | KnownBlock)[] => {
+    // Codex特有の出力処理を適用
+    const formattedOutput = formatCodexForSlack(output);
+    const codexCommand = extractCodexCommand(output);
+
     const blocks: (Block | KnownBlock)[] = [
       {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `\`\`\`\n${output}\n\`\`\``,
+          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
         },
       },
     ];
+
+    // コマンドが検出された場合、それを表示
+    if (codexCommand) {
+      blocks.unshift({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `💻 実行中: \`${codexCommand}\``,
+        },
+      });
+    }
 
     if (isRunning) {
       blocks.push({
@@ -49,20 +65,79 @@ export class SlackBlockService {
   static createCompletedBlock = (
     output: string,
     code: number | null
-  ): (Block | KnownBlock)[] => [
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `\`\`\`\n${output}\n\`\`\``,
+  ): (Block | KnownBlock)[] => {
+    // Codex特有の出力処理を適用
+    const formattedOutput = formatCodexForSlack(output);
+    const codexCommand = extractCodexCommand(output);
+
+    const blocks: (Block | KnownBlock)[] = [];
+
+    // コマンドが検出された場合、それを表示
+    if (codexCommand) {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `💻 実行完了: \`${codexCommand}\``,
+        },
+      });
+    }
+
+    blocks.push(
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
+        },
       },
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: code === 0 ? "✅ 完了" : "❌ エラー",
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: code === 0 ? "✅ 完了" : "❌ エラー",
+        },
+      }
+    );
+
+    return blocks;
+  };
+
+  static createStoppedBlock = (output: string): (Block | KnownBlock)[] => {
+    // Codex特有の出力処理を適用
+    const formattedOutput = formatCodexForSlack(output);
+    const codexCommand = extractCodexCommand(output);
+
+    const blocks: (Block | KnownBlock)[] = [];
+
+    // コマンドが検出された場合、それを表示
+    if (codexCommand) {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `💻 停止されたコマンド: \`${codexCommand}\``,
+        },
+      });
+    }
+
+    blocks.push(
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
+        },
       },
-    },
-  ];
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "⏹️ 停止しました",
+        },
+      }
+    );
+
+    return blocks;
+  };
 }

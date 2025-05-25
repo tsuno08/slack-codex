@@ -3,10 +3,12 @@ import * as pty from "node-pty";
 import { ProcessKey, CodexConfig } from "../../shared/types/codex";
 import { CONSTANTS } from "../../infrastructure/config";
 import { logger } from "../../infrastructure/logger";
+import { processCodexOutput, cleanCodexOutput } from "../../shared/utils";
 
 export class CodexProcess extends EventEmitter {
   private process: pty.IPty | null = null;
   private outputBuffer: string = "";
+  private lastEmittedLength: number = 0;
 
   constructor(private processKey: ProcessKey, private config: CodexConfig) {
     super();
@@ -67,9 +69,26 @@ export class CodexProcess extends EventEmitter {
   };
 
   private handleData = (data: string): void => {
-    logger.debug(`Codex output [${this.processKey}]:`, data.trim());
+    logger.debug(`Codex raw output [${this.processKey}]:`, data.trim());
+
+    // 生データをバッファに追加
     this.outputBuffer += data;
-    this.emit("data", data);
+
+    // Codex応答パターンに合わせて処理
+    const processedOutput = processCodexOutput(this.outputBuffer);
+    const cleanedOutput = cleanCodexOutput(processedOutput);
+
+    // 新しい出力のみを抽出してイベント発火
+    if (cleanedOutput.length > this.lastEmittedLength) {
+      const newOutput = cleanedOutput.slice(this.lastEmittedLength);
+      this.lastEmittedLength = cleanedOutput.length;
+
+      logger.debug(
+        `Codex processed output [${this.processKey}]:`,
+        newOutput.trim()
+      );
+      this.emit("data", newOutput);
+    }
   };
 
   private handleExit = (exitCode: {
@@ -85,7 +104,9 @@ export class CodexProcess extends EventEmitter {
   };
 
   getOutput = (): string => {
-    return this.outputBuffer;
+    // 処理済みのクリーンな出力を返す
+    const processedOutput = processCodexOutput(this.outputBuffer);
+    return cleanCodexOutput(processedOutput);
   };
 
   isRunning = (): boolean => {

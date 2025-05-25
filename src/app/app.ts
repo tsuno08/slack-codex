@@ -91,6 +91,8 @@ export const createApp = (): App => {
           },
         ],
       });
+
+      outputBuffer.delete(processKey);
     } catch (updateError) {
       logger.error("Error updating message with error:", updateError);
     }

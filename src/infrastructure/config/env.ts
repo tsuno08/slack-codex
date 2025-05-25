@@ -30,9 +30,8 @@ const getRequiredEnv = (key: string): string => {
   return value;
 };
 
-// 後方互換性のための初期化関数
 export const initializeConfig = () => {
-  // OPENAI_API_KEYの設定（後方互換性）
+  // OPENAI_API_KEYの設定（codexの実装上必要なため）
   if (!process.env.OPENAI_API_KEY) {
     process.env.OPENAI_API_KEY = process.env.LLM_API_KEY;
   }
