@@ -18,6 +18,8 @@ export class CodexService extends EventEmitter {
   private static instance: CodexService;
   private processes = new Map<ProcessKey, CodexProcess>();
   private activityTimers = new Map<ProcessKey, ActivityTimer>();
+  private inactiveProcesses = new Set<ProcessKey>(); // 非アクティブ状態のプロセスを追跡
+  private outputBuffer = new Map<ProcessKey, string>(); // 出力をバッファリング
   private readonly INACTIVITY_THRESHOLD = 5000; // 5秒
 
   private constructor() {
@@ -53,16 +55,26 @@ export class CodexService extends EventEmitter {
 
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
-      const output: CodexOutput = { channel, ts, output: data };
+      // 出力をバッファに蓄積（即座にUIには反映しない）
+      const currentBuffer = this.outputBuffer.get(processKey) || "";
+      this.outputBuffer.set(processKey, currentBuffer + data);
+
       this.resetActivityTimer(processKey, channel, ts);
-      this.emit("output", output);
     });
 
     codexProcess.on(
       "exit",
       (exitCode: { exitCode: number; signal?: number }) => {
+        // プロセス終了時にバッファされた出力を発火
+        const bufferedOutput = this.outputBuffer.get(processKey) || "";
+        if (bufferedOutput) {
+          const output: CodexOutput = { channel, ts, output: bufferedOutput };
+          this.emit("output", output);
+        }
+
         const close: CodexClose = { channel, ts, code: exitCode.exitCode };
         this.clearActivityTimer(processKey);
+        this.outputBuffer.delete(processKey); // バッファをクリーンアップ
         this.processes.delete(processKey);
         this.emit("close", close);
       }
@@ -126,8 +138,20 @@ export class CodexService extends EventEmitter {
     // 既存のタイマーをクリア
     this.clearActivityTimer(processKey);
 
+    // 非アクティブ状態をクリア
+    this.inactiveProcesses.delete(processKey);
+
     // 新しいタイマーを設定
     const timer = setTimeout(() => {
+      this.inactiveProcesses.add(processKey); // 非アクティブ状態に追加
+
+      // バッファされた出力を発火
+      const bufferedOutput = this.outputBuffer.get(processKey) || "";
+      if (bufferedOutput) {
+        const output: CodexOutput = { channel, ts, output: bufferedOutput };
+        this.emit("output", output);
+      }
+
       const inactivity: CodexInactivity = { channel, ts };
       this.emit("inactivity", inactivity);
     }, this.INACTIVITY_THRESHOLD);
@@ -144,10 +168,24 @@ export class CodexService extends EventEmitter {
       clearTimeout(activityTimer.timer);
       this.activityTimers.delete(processKey);
     }
+    // 非アクティブ状態もクリア
+    this.inactiveProcesses.delete(processKey);
+    // バッファもクリア
+    this.outputBuffer.delete(processKey);
   };
 
   private clearAllActivityTimers = (): void => {
     this.activityTimers.forEach((timer) => clearTimeout(timer.timer));
     this.activityTimers.clear();
+    this.inactiveProcesses.clear();
+    this.outputBuffer.clear(); // 全バッファをクリア
+  };
+
+  isProcessInactive = (processKey: ProcessKey): boolean => {
+    return this.inactiveProcesses.has(processKey);
+  };
+
+  getBufferedOutput = (processKey: ProcessKey): string => {
+    return this.outputBuffer.get(processKey) || "";
   };
 }

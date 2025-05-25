@@ -254,4 +254,18 @@ export class SlackBlockService {
 
     return blocks;
   };
+
+  static createOutputWithInactivityBlock = (
+    output: string,
+    isRunning: boolean = true
+  ): (Block | KnownBlock)[] => {
+    // 通常の出力ブロックを取得
+    const outputBlocks = SlackBlockService.createOutputBlock(output, isRunning);
+
+    // 非アクティビティローディングブロックを追加
+    const inactivityBlocks = SlackBlockService.createInactivityLoadingBlock();
+
+    // 結合して返す
+    return [...outputBlocks, ...inactivityBlocks];
+  };
 }

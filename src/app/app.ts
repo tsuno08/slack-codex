@@ -30,14 +30,17 @@ export const createApp = (): App => {
   app.action("stop_codex", handleStopButton);
   app.action("send_suggestion", handleSendSuggestion);
 
-  // Codexからの出力を処理
+  // Codexからの出力を処理（5秒非アクティブ時にのみ発火される）
   codexService.on("output", async ({ channel, ts, output }) => {
     try {
       const processKey = codexService.createProcessKey(channel, ts);
-      outputBuffer.append(processKey, output);
+
+      // バッファされた出力で既存の内容を上書き
+      outputBuffer.set(processKey, output);
 
       const currentOutput = outputBuffer.get(processKey);
       const isRunning = codexService.isProcessRunning(processKey);
+      const wasInactive = codexService.isProcessInactive(processKey);
 
       // 入力待ち状態を検出
       const inputPrompt = detectCodexInputPrompt(currentOutput);
@@ -63,6 +66,11 @@ export const createApp = (): App => {
         ts: ts,
         blocks: blocks,
       });
+
+      // 非アクティブ状態からアクティブに戻った場合のログ
+      if (wasInactive) {
+        logger.info("Process resumed activity", { processKey });
+      }
     } catch (error) {
       logger.error("Error updating message with output:", error);
     }
@@ -96,7 +104,13 @@ export const createApp = (): App => {
         return; // プロセスが停止していれば何もしない
       }
 
-      const currentOutput = outputBuffer.get(processKey);
+      // CodexServiceの内部バッファから現在の出力を取得
+      const currentOutput = codexService.getBufferedOutput(processKey);
+
+      // outputBufferにも同期（表示用）
+      if (currentOutput) {
+        outputBuffer.set(processKey, currentOutput);
+      }
 
       // 入力待ち状態をチェック
       const inputPrompt = detectCodexInputPrompt(currentOutput);
@@ -105,17 +119,16 @@ export const createApp = (): App => {
         return; // 入力待ち状態ならローディング表示しない
       }
 
-      // ローディング状態を表示
+      logger.info("Showing inactivity loading for process", { processKey });
+
+      // 非アクティブ状態を含む出力ブロックを表示
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: [
-          ...SlackBlockService.createOutputBlock(
-            truncateOutput(currentOutput),
-            true
-          ),
-          ...SlackBlockService.createInactivityLoadingBlock(),
-        ],
+        blocks: SlackBlockService.createOutputWithInactivityBlock(
+          truncateOutput(currentOutput),
+          true
+        ),
       });
     } catch (error) {
       logger.error("Error handling inactivity:", error);
