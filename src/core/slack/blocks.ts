@@ -214,10 +214,20 @@ export class SlackBlockService {
             type: "button",
             text: {
               type: "plain_text",
-              text: `💡 "${suggestion}"`,
+              text: "✍️ 入力",
               emoji: true,
             },
             style: "primary",
+            action_id: "open_input_modal",
+            value: JSON.stringify({ promptType, suggestion }),
+          },
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: `💡 "${suggestion}"`,
+              emoji: true,
+            },
             action_id: "send_suggestion",
             value: suggestion,
           },
@@ -234,10 +244,21 @@ export class SlackBlockService {
         ],
       });
     } else {
-      // 一般的な入力待ちの場合は停止ボタンのみ
+      // 一般的な入力待ちの場合は入力ボタンと停止ボタン
       blocks.push({
         type: "actions",
         elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "✍️ 入力",
+              emoji: true,
+            },
+            style: "primary",
+            action_id: "open_input_modal",
+            value: JSON.stringify({ promptType: promptType || "general" }),
+          },
           {
             type: "button",
             text: {
@@ -267,5 +288,71 @@ export class SlackBlockService {
 
     // 結合して返す
     return [...outputBlocks, ...inactivityBlocks];
+  };
+
+  static createInputModal = (
+    processKey: string,
+    promptType: "explanation" | "general",
+    suggestion?: string
+  ) => {
+    const titleText =
+      promptType === "explanation" ? "Codex説明入力" : "Codex入力";
+
+    const placeholderText =
+      promptType === "explanation"
+        ? "コードベースの説明を入力してください..."
+        : "Codexへの入力を記述してください...";
+
+    return {
+      type: "modal",
+      callback_id: "codex_input_modal",
+      title: {
+        type: "plain_text",
+        text: titleText,
+        emoji: true,
+      },
+      submit: {
+        type: "plain_text",
+        text: "送信",
+        emoji: true,
+      },
+      close: {
+        type: "plain_text",
+        text: "キャンセル",
+        emoji: true,
+      },
+      private_metadata: JSON.stringify({ processKey, promptType }),
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text:
+              promptType === "explanation"
+                ? "💬 Codexがコードベースの説明を求めています。"
+                : "💬 Codexが入力を待っています。",
+          },
+        },
+        {
+          type: "input",
+          block_id: "input_block",
+          element: {
+            type: "plain_text_input",
+            action_id: "input_text",
+            placeholder: {
+              type: "plain_text",
+              text: placeholderText,
+            },
+            multiline: true,
+            initial_value: suggestion || "",
+          },
+          label: {
+            type: "plain_text",
+            text: "入力内容",
+            emoji: true,
+          },
+        },
+      ],
+    };
   };
 }

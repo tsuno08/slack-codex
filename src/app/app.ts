@@ -8,6 +8,8 @@ import {
   handleAppMention,
   handleStopButton,
   handleSendSuggestion,
+  handleOpenInputModal,
+  handleInputModalSubmission,
   outputBuffer,
 } from "./handlers";
 
@@ -29,6 +31,8 @@ export const createApp = (): App => {
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
   app.action("send_suggestion", handleSendSuggestion);
+  app.action("open_input_modal", handleOpenInputModal);
+  app.view("codex_input_modal", handleInputModalSubmission);
 
   // Codexからの出力を処理（5秒非アクティブ時にのみ発火される）
   codexService.on("output", async ({ channel, ts, output }) => {
