@@ -41,6 +41,13 @@ export class CodexService extends EventEmitter {
     ts: string
   ): Promise<ProcessKey> => {
     const processKey = this.createProcessKey(channel, ts);
+    console.log("=== STARTING CODEX PROCESS ===");
+    console.log("ProcessKey:", processKey);
+    console.log("Message:", message);
+    console.log("Channel:", channel);
+    console.log("TS:", ts);
+    console.log("==============================");
+
     logger.info(`Starting Codex process for ${processKey}`, { message });
 
     // 既存プロセス停止
@@ -57,11 +64,18 @@ export class CodexService extends EventEmitter {
 
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
+      console.log("=== CODEX DATA EVENT ===");
+      console.log("ProcessKey:", processKey);
+      console.log("Data length:", data?.length || 0);
+      console.log("Data preview:", data?.substring(0, 100) || "No data");
+      console.log("=======================");
+
       // 出力をバッファに蓄積
       const currentBuffer = this.outputBuffer.get(processKey) || "";
       const newBuffer = currentBuffer + data;
       this.outputBuffer.set(processKey, newBuffer);
 
+      console.log("=== CALLING SCHEDULE REALTIME OUTPUT ===");
       // リアルタイム出力のためのデバウンスタイマー
       this.scheduleRealtimeOutput(processKey, channel, ts);
 
@@ -194,20 +208,35 @@ export class CodexService extends EventEmitter {
     channel: string,
     ts: string
   ): void => {
+    console.log("=== SCHEDULE REALTIME OUTPUT ===");
+    console.log("ProcessKey:", processKey);
+    console.log("Channel:", channel);
+    console.log("TS:", ts);
+
     // 既存のリアルタイムタイマーをクリア
     this.clearRealtimeTimer(processKey);
 
     // 新しいタイマーを設定
     const timer = setTimeout(() => {
+      console.log("=== REALTIME TIMER FIRED ===");
+      console.log("ProcessKey:", processKey);
+
       const bufferedOutput = this.outputBuffer.get(processKey) || "";
+      console.log("Buffered output length:", bufferedOutput?.length || 0);
+
       if (bufferedOutput) {
         const output: CodexOutput = { channel, ts, output: bufferedOutput };
+        console.log("=== EMITTING OUTPUT EVENT ===");
         this.emit("output", output);
+      } else {
+        console.log("=== NO BUFFERED OUTPUT TO EMIT ===");
       }
+
       this.realtimeTimers.delete(processKey);
     }, this.REALTIME_DELAY);
 
     this.realtimeTimers.set(processKey, timer);
+    console.log("=== REALTIME TIMER SET ===");
   };
 
   private clearRealtimeTimer = (processKey: ProcessKey): void => {
