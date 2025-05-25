@@ -75,4 +75,52 @@ export const handleStopButton = async ({
   }
 };
 
-export { outputBuffer };
+const handleSendSuggestion = async ({
+  ack,
+  body,
+  client,
+}: {
+  ack: any;
+  body: any;
+  client: any;
+}) => {
+  await ack();
+
+  try {
+    const { channel, message, actions } = body as any;
+    const codexService = CodexService.getInstance();
+    const processKey = codexService.createProcessKey(channel.id, message.ts);
+    const suggestion = actions[0]?.value;
+
+    logger.info("Suggestion button pressed", { processKey, suggestion });
+
+    if (suggestion && (await codexService.isProcessRunning(processKey))) {
+      // Codexプロセスに提案を送信
+      await codexService.sendInput(processKey, suggestion);
+
+      // UIを更新して送信したことを示す
+      const currentOutput = outputBuffer.get(processKey);
+      const updatedOutput = currentOutput + `\n> ${suggestion}`;
+      outputBuffer.set(processKey, updatedOutput);
+
+      await client.chat.update({
+        channel: channel.id,
+        ts: message.ts,
+        blocks: SlackBlockService.createOutputBlock(
+          truncateOutput(updatedOutput),
+          true
+        ),
+      });
+    } else {
+      await client.chat.postEphemeral({
+        channel: channel.id,
+        user: body.user.id,
+        text: "❌ プロセスが見つからないか、既に停止しています。",
+      });
+    }
+  } catch (error) {
+    logger.error("Error handling suggestion button:", error);
+  }
+};
+
+export { outputBuffer, handleSendSuggestion };

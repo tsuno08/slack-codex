@@ -68,6 +68,20 @@ export class CodexProcess extends EventEmitter {
     }
   };
 
+  sendInput = async (input: string): Promise<void> => {
+    if (!this.process) {
+      throw new Error(
+        `Cannot send input: process not running [${this.processKey}]`
+      );
+    }
+
+    // 入力を送信（改行を追加）
+    const inputWithNewline = input.endsWith("\n") ? input : input + "\n";
+    this.process.write(inputWithNewline);
+
+    logger.debug(`Sent input to Codex process [${this.processKey}]:`, input);
+  };
+
   private handleData = (data: string): void => {
     logger.debug(`Codex raw output [${this.processKey}]:`, data.trim());
 

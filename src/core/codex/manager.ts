@@ -90,6 +90,19 @@ export class CodexService extends EventEmitter {
     return codexProcess?.getOutput() ?? null;
   };
 
+  sendInput = async (
+    processKey: ProcessKey,
+    input: string
+  ): Promise<boolean> => {
+    const codexProcess = this.processes.get(processKey);
+    if (codexProcess && codexProcess.isRunning()) {
+      await codexProcess.sendInput(input);
+      return true;
+    }
+    logger.warn(`Cannot send input to process [${processKey}]: not running`);
+    return false;
+  };
+
   createProcessKey = (channel: string, ts: string): ProcessKey => {
     return `${channel}-${ts}` as ProcessKey;
   };

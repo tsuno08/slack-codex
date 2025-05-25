@@ -1,10 +1,15 @@
 import { App } from "@slack/bolt";
 import { CodexService } from "../core/codex";
 import { SlackBlockService } from "../core/slack";
-import { truncateOutput } from "../shared/utils";
+import { truncateOutput, detectCodexInputPrompt } from "../shared/utils";
 import { logger } from "../infrastructure/logger";
 import { initializeConfig } from "../infrastructure/config";
-import { handleAppMention, handleStopButton, outputBuffer } from "./handlers";
+import {
+  handleAppMention,
+  handleStopButton,
+  handleSendSuggestion,
+  outputBuffer,
+} from "./handlers";
 
 export const createApp = (): App => {
   const config = initializeConfig();
@@ -23,6 +28,7 @@ export const createApp = (): App => {
   // イベントハンドラーの登録
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
+  app.action("send_suggestion", handleSendSuggestion);
 
   // Codexからの出力を処理
   codexService.on("output", async ({ channel, ts, output }) => {
@@ -33,13 +39,29 @@ export const createApp = (): App => {
       const currentOutput = outputBuffer.get(processKey);
       const isRunning = codexService.isProcessRunning(processKey);
 
+      // 入力待ち状態を検出
+      const inputPrompt = detectCodexInputPrompt(currentOutput);
+
+      let blocks;
+      if (inputPrompt.isWaitingForInput && inputPrompt.promptType) {
+        // 入力待ち状態用のUI
+        blocks = SlackBlockService.createInputPromptBlock(
+          truncateOutput(currentOutput),
+          inputPrompt.promptType,
+          inputPrompt.suggestion
+        );
+      } else {
+        // 通常の出力用のUI
+        blocks = SlackBlockService.createOutputBlock(
+          truncateOutput(currentOutput),
+          isRunning
+        );
+      }
+
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: SlackBlockService.createOutputBlock(
-          truncateOutput(currentOutput),
-          isRunning
-        ),
+        blocks: blocks,
       });
     } catch (error) {
       logger.error("Error updating message with output:", error);

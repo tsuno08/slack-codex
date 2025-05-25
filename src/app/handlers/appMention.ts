@@ -1,6 +1,9 @@
 import { CodexService } from "../../core/codex";
 import { SlackBlockService, SlackUtils } from "../../core/slack";
+import { detectCodexInputPrompt } from "../../shared/utils";
+import { ProcessKey } from "../../shared/types/codex";
 import { logger } from "../../infrastructure/logger";
+import { outputBuffer } from "./buttonAction";
 
 export const handleAppMention = async ({
   event,
@@ -26,7 +29,66 @@ export const handleAppMention = async ({
       return;
     }
 
-    logger.info("Processing task", { task, channel, user });
+    // 既存の実行中プロセスを確認
+    const codexService = CodexService.getInstance();
+
+    // スレッド内で最近のメッセージから実行中のプロセスを探す
+    // より安全な方法として、最近の会話履歴を確認
+    try {
+      const conversationHistory = await client.conversations.history({
+        channel: channel,
+        limit: 10,
+      });
+
+      let runningProcessKey: ProcessKey | null = null;
+      for (const message of conversationHistory.messages || []) {
+        if (message.bot_id && message.ts) {
+          const possibleProcessKey = codexService.createProcessKey(
+            channel,
+            message.ts
+          );
+          if (codexService.isProcessRunning(possibleProcessKey)) {
+            const currentOutput = outputBuffer.get(possibleProcessKey);
+            const inputPrompt = detectCodexInputPrompt(currentOutput);
+
+            if (inputPrompt.isWaitingForInput) {
+              runningProcessKey = possibleProcessKey;
+              break;
+            }
+          }
+        }
+      }
+
+      // 入力待ち状態のプロセスがあれば、入力として送信
+      if (runningProcessKey) {
+        logger.info("Sending input to running Codex process", {
+          processKey: runningProcessKey,
+          input: task,
+        });
+
+        await codexService.sendInput(runningProcessKey, task);
+
+        // UIを更新して送信したことを示す
+        const currentOutput = outputBuffer.get(runningProcessKey);
+        const updatedOutput = currentOutput + `\n> ${task}`;
+        outputBuffer.set(runningProcessKey, updatedOutput);
+
+        // 元のメッセージを見つけて更新
+        const messageTs = runningProcessKey.replace(`${channel}-`, "");
+        await client.chat.update({
+          channel: channel,
+          ts: messageTs,
+          blocks: SlackBlockService.createOutputBlock(updatedOutput, true),
+        });
+
+        return;
+      }
+    } catch (error) {
+      logger.warn("Failed to check for running processes", error);
+      // エラーが発生しても新しいプロセスとして続行
+    }
+
+    logger.info("Processing new task", { task, channel, user });
 
     // 初期のローディングメッセージを送信
     const response = await client.chat.postMessage({

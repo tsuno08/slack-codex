@@ -120,3 +120,55 @@ export const formatCodexForSlack = (output: string): string => {
 
   return formattedLines.join("\n");
 };
+
+export const detectCodexInputPrompt = (
+  output: string
+): {
+  isWaitingForInput: boolean;
+  promptType: "explanation" | "general" | null;
+  suggestion?: string;
+} => {
+  // Codexが入力を待っている状態を検出
+  const lines = output.split("\n");
+  const lastFewLines = lines.slice(-5).join("\n").toLowerCase();
+
+  // "try: explain this codebase to me" パターン
+  if (
+    lastFewLines.includes("try:") &&
+    lastFewLines.includes("explain this codebase")
+  ) {
+    return {
+      isWaitingForInput: true,
+      promptType: "explanation",
+      suggestion: "explain this codebase to me",
+    };
+  }
+
+  // "enter to send" パターン
+  if (lastFewLines.includes("enter to send")) {
+    return {
+      isWaitingForInput: true,
+      promptType: "general",
+      suggestion: undefined,
+    };
+  }
+
+  // その他の入力待ちパターン
+  const inputPromptPatterns = [
+    /press\s+enter/i,
+    /waiting\s+for\s+input/i,
+    /enter\s+your\s+response/i,
+    /type\s+your\s+message/i,
+    />\s*$/m, // プロンプト記号で終わる
+  ];
+
+  const hasInputPrompt = inputPromptPatterns.some((pattern) =>
+    pattern.test(output)
+  );
+
+  return {
+    isWaitingForInput: hasInputPrompt,
+    promptType: hasInputPrompt ? "general" : null,
+    suggestion: undefined,
+  };
+};
