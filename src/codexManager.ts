@@ -1,9 +1,9 @@
-import { spawn, ChildProcess } from "child_process";
 import { EventEmitter } from "events";
+import * as pty from "node-pty";
 import { logger } from "./logger";
 
 export class CodexManager extends EventEmitter {
-  private processes: Map<string, ChildProcess> = new Map();
+  private processes: Map<string, pty.IPty> = new Map();
   private outputBuffer: Map<string, string> = new Map();
 
   constructor() {
@@ -44,41 +44,35 @@ export class CodexManager extends EventEmitter {
 
       logger.debug("Codex command args:", args);
 
-      const codexProcess = spawn("codex", args, {
+      const codexProcess = pty.spawn("codex", args, {
+        name: "xterm-color",
+        cols: 80,
+        rows: 30,
         env: {
           ...process.env,
+          TERM: "xterm-256color",
+          FORCE_COLOR: "1",
         },
       });
 
       this.processes.set(processKey, codexProcess);
 
-      codexProcess.stdout?.on("data", (data: Buffer) => {
-        const output = data.toString();
-        logger.debug(`Codex stdout [${processKey}]:`, output.trim());
+      codexProcess.onData((data: string) => {
+        logger.debug(`Codex output [${processKey}]:`, data.trim());
         // 出力をバッファに追加
         const currentOutput = this.outputBuffer.get(processKey) || "";
-        this.outputBuffer.set(processKey, currentOutput + output);
-        this.emit("output", { channel, ts, output });
+        this.outputBuffer.set(processKey, currentOutput + data);
+        this.emit("output", { channel, ts, output: data });
       });
 
-      codexProcess.stderr?.on("data", (data: Buffer) => {
-        const error = data.toString();
-        logger.warn(`Codex stderr [${processKey}]:`, error.trim());
-        this.emit("error", { channel, ts, error });
-      });
-
-      codexProcess.on("close", (code: number | null) => {
-        logger.info(`Codex process closed [${processKey}] with code:`, code);
+      codexProcess.onExit((exitCode: { exitCode: number; signal?: number }) => {
+        logger.info(
+          `Codex process exited [${processKey}] with code:`,
+          exitCode.exitCode
+        );
         this.processes.delete(processKey);
         this.outputBuffer.delete(processKey);
-        this.emit("close", { channel, ts, code });
-      });
-
-      codexProcess.on("error", (error: Error) => {
-        logger.error(`Codex process error [${processKey}]:`, error);
-        this.processes.delete(processKey);
-        this.outputBuffer.delete(processKey);
-        reject(error);
+        this.emit("close", { channel, ts, code: exitCode.exitCode });
       });
 
       // プロセスが正常に開始されたことを確認
@@ -96,7 +90,7 @@ export class CodexManager extends EventEmitter {
 
   public stopProcess = (processKey: string): boolean => {
     const process = this.processes.get(processKey);
-    if (process && !process.killed) {
+    if (process) {
       logger.info(`Stopping Codex process [${processKey}]`);
       process.kill("SIGTERM");
       this.processes.delete(processKey);
@@ -114,7 +108,7 @@ export class CodexManager extends EventEmitter {
 
   public isProcessRunning = (processKey: string): boolean => {
     const process = this.processes.get(processKey);
-    return process !== undefined && !process.killed;
+    return process !== undefined;
   };
 
   private getLastOutput = (processKey: string): string | null => {
