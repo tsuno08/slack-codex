@@ -5,12 +5,20 @@ import {
   CodexConfig,
   CodexOutput,
   CodexClose,
+  CodexInactivity,
 } from "../../shared/types/codex";
 import { logger } from "../../infrastructure/logger";
+
+type ActivityTimer = {
+  timer: NodeJS.Timeout;
+  lastActivity: number;
+};
 
 export class CodexService extends EventEmitter {
   private static instance: CodexService;
   private processes = new Map<ProcessKey, CodexProcess>();
+  private activityTimers = new Map<ProcessKey, ActivityTimer>();
+  private readonly INACTIVITY_THRESHOLD = 5000; // 5秒
 
   private constructor() {
     super();
@@ -46,6 +54,7 @@ export class CodexService extends EventEmitter {
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
       const output: CodexOutput = { channel, ts, output: data };
+      this.resetActivityTimer(processKey, channel, ts);
       this.emit("output", output);
     });
 
@@ -53,18 +62,24 @@ export class CodexService extends EventEmitter {
       "exit",
       (exitCode: { exitCode: number; signal?: number }) => {
         const close: CodexClose = { channel, ts, code: exitCode.exitCode };
+        this.clearActivityTimer(processKey);
         this.processes.delete(processKey);
         this.emit("close", close);
       }
     );
 
     await codexProcess.start(message);
+
+    // アクティビティタイマーを開始
+    this.resetActivityTimer(processKey, channel, ts);
+
     return processKey;
   };
 
   stopProcess = async (processKey: ProcessKey): Promise<boolean> => {
     const codexProcess = this.processes.get(processKey);
     if (codexProcess) {
+      this.clearActivityTimer(processKey);
       await codexProcess.stop();
       this.processes.delete(processKey);
       return true;
@@ -78,6 +93,7 @@ export class CodexService extends EventEmitter {
       this.stopProcess(key)
     );
     await Promise.all(stopPromises);
+    this.clearAllActivityTimers();
   };
 
   isProcessRunning = (processKey: ProcessKey): boolean => {
@@ -105,5 +121,38 @@ export class CodexService extends EventEmitter {
 
   createProcessKey = (channel: string, ts: string): ProcessKey => {
     return `${channel}-${ts}` as ProcessKey;
+  };
+
+  private resetActivityTimer = (
+    processKey: ProcessKey,
+    channel: string,
+    ts: string
+  ): void => {
+    // 既存のタイマーをクリア
+    this.clearActivityTimer(processKey);
+
+    // 新しいタイマーを設定
+    const timer = setTimeout(() => {
+      const inactivity: CodexInactivity = { channel, ts };
+      this.emit("inactivity", inactivity);
+    }, this.INACTIVITY_THRESHOLD);
+
+    this.activityTimers.set(processKey, {
+      timer,
+      lastActivity: Date.now(),
+    });
+  };
+
+  private clearActivityTimer = (processKey: ProcessKey): void => {
+    const activityTimer = this.activityTimers.get(processKey);
+    if (activityTimer) {
+      clearTimeout(activityTimer.timer);
+      this.activityTimers.delete(processKey);
+    }
+  };
+
+  private clearAllActivityTimers = (): void => {
+    this.activityTimers.forEach((timer) => clearTimeout(timer.timer));
+    this.activityTimers.clear();
   };
 }

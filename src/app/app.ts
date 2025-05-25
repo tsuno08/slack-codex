@@ -86,6 +86,42 @@ export const createApp = (): App => {
     }
   });
 
+  // 非アクティビティ（5秒以上出力なし）時の処理
+  codexService.on("inactivity", async ({ channel, ts }) => {
+    try {
+      const processKey = codexService.createProcessKey(channel, ts);
+      const isRunning = codexService.isProcessRunning(processKey);
+
+      if (!isRunning) {
+        return; // プロセスが停止していれば何もしない
+      }
+
+      const currentOutput = outputBuffer.get(processKey);
+
+      // 入力待ち状態をチェック
+      const inputPrompt = detectCodexInputPrompt(currentOutput);
+
+      if (inputPrompt.isWaitingForInput) {
+        return; // 入力待ち状態ならローディング表示しない
+      }
+
+      // ローディング状態を表示
+      await app.client.chat.update({
+        channel: channel,
+        ts: ts,
+        blocks: [
+          ...SlackBlockService.createOutputBlock(
+            truncateOutput(currentOutput),
+            true
+          ),
+          ...SlackBlockService.createInactivityLoadingBlock(),
+        ],
+      });
+    } catch (error) {
+      logger.error("Error handling inactivity:", error);
+    }
+  });
+
   // エラー処理
   codexService.on("error", async ({ channel, ts, error }) => {
     try {

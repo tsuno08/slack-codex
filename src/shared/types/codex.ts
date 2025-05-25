@@ -19,6 +19,11 @@ export type CodexClose = {
   code: number | null;
 };
 
+export type CodexInactivity = {
+  channel: string;
+  ts: string;
+};
+
 export type LLMConfig = {
   apiKey: string;
   baseUrl: string;

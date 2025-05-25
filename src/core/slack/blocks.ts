@@ -12,6 +12,25 @@ export class SlackBlockService {
     },
   ];
 
+  static createInactivityLoadingBlock = (): (Block | KnownBlock)[] => [
+    {
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: "⏳ Codexが処理中です...",
+      },
+    },
+    {
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: "_5秒以上出力がありません。処理が続行されています。_",
+        },
+      ],
+    },
+  ];
+
   static createOutputBlock = (
     output: string,
     isRunning: boolean = true
