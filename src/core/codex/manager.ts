@@ -43,8 +43,8 @@ export class CodexService extends EventEmitter {
     await this.stopProcess(processKey);
 
     const config: CodexConfig = {
-      provider: process.env.LLM_PROVIDER || "openai",
-      model: process.env.LLM_MODEL || "",
+      provider: "gemini",
+      model: "gemini-2.0-flash",
       approvalMode: "full-auto",
     };
 

@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 import { SlackConfig } from "../../shared/types/slack";
-import { LLMConfig, AppConfig } from "../../shared/types/codex";
 
 dotenv.config();
 
@@ -21,13 +20,7 @@ const getRequiredEnv = (key: string): string => {
 export const initializeConfig = () => {
   // OPENAI_API_KEYの設定（codexの実装上必要なため）
   if (!process.env.OPENAI_API_KEY) {
-    process.env.OPENAI_API_KEY = process.env.LLM_API_KEY;
-  }
-  if (process.env.LLM_PROVIDER) {
-    process.env[`${process.env.LLM_PROVIDER.toUpperCase()}_API_KEY`] =
-      process.env.LLM_API_KEY;
-    process.env[`${process.env.LLM_PROVIDER.toUpperCase()}_BASE_URL`] =
-      process.env.LLM_BASE_URL;
+    process.env.OPENAI_API_KEY = process.env.GEMINI_API_KEY;
   }
 
   return getSlackConfig();

@@ -17,12 +17,6 @@ export class CodexProcess extends EventEmitter {
 
   start = async (message: string): Promise<void> => {
     return new Promise((resolve, reject) => {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        reject(new Error("OPENAI_API_KEY is not set"));
-        return;
-      }
-
       const args = [
         "--provider",
         this.config.provider,
@@ -116,12 +110,6 @@ export class CodexProcess extends EventEmitter {
     );
     this.process = null;
     this.emit("exit", exitCode);
-  };
-
-  getOutput = (): string => {
-    // 処理済みのクリーンな出力を返す
-    const processedOutput = processCodexOutput(this.outputBuffer);
-    return cleanCodexOutput(processedOutput);
   };
 
   isRunning = (): boolean => {

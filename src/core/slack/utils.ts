@@ -1,5 +1,3 @@
-import { WebClient } from "@slack/web-api";
-
 export class SlackUtils {
   static extractMentionText = (text: string): string => {
     // ボットメンションとユーザーメンションを除去
