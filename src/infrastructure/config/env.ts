@@ -35,6 +35,12 @@ export const initializeConfig = () => {
   if (!process.env.OPENAI_API_KEY) {
     process.env.OPENAI_API_KEY = process.env.LLM_API_KEY;
   }
+  if (process.env.LLM_PROVIDER) {
+    process.env[`${process.env.LLM_PROVIDER.toUpperCase()}_API_KEY`] =
+      process.env.LLM_API_KEY;
+    process.env[`${process.env.LLM_PROVIDER.toUpperCase()}_BASE_URL`] =
+      process.env.LLM_BASE_URL;
+  }
 
   return getSlackConfig();
 };
