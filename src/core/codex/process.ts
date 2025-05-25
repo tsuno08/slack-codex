@@ -12,11 +12,10 @@ export class CodexProcess extends EventEmitter {
 
   constructor(private processKey: ProcessKey, private config: CodexConfig) {
     super();
-    this.config = config;
   }
 
   start = async (message: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const args = [
         "--provider",
         this.config.provider,
@@ -47,7 +46,6 @@ export class CodexProcess extends EventEmitter {
           resolve();
         } else {
           logger.error(`Failed to start Codex process [${this.processKey}]`);
-          reject(new Error("Failed to start Codex process"));
         }
       }, CONSTANTS.PROCESS_START_TIMEOUT);
     });
@@ -90,11 +88,17 @@ export class CodexProcess extends EventEmitter {
       const newOutput = cleanedOutput.slice(this.lastEmittedLength);
       this.lastEmittedLength = cleanedOutput.length;
 
-      logger.debug(`Codex emitting data event [${this.processKey}]:`, newOutput);
+      logger.debug(
+        `Codex emitting data event [${this.processKey}]:`,
+        newOutput
+      );
 
       this.emit("data", newOutput);
     } else {
-      logger.debug(`Codex processed output [${this.processKey}]:`, cleanedOutput);
+      logger.debug(
+        `Codex processed output [${this.processKey}]:`,
+        cleanedOutput
+      );
     }
   };
 

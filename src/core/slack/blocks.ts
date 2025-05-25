@@ -2,6 +2,31 @@ import { Block, KnownBlock } from "@slack/types";
 import { formatCodexForSlack, extractCodexCommand } from "../../shared/utils";
 
 export class SlackBlockService {
+  // 共通のヘルパーメソッド
+  private static createCommandBlock = (
+    codexCommand: string | null,
+    statusText: string
+  ) => {
+    if (!codexCommand) return [];
+    return [
+      {
+        type: "section" as const,
+        text: {
+          type: "mrkdwn" as const,
+          text: `💻 ${statusText}: \`${codexCommand}\``,
+        },
+      },
+    ];
+  };
+
+  private static createOutputSection = (formattedOutput: string) => ({
+    type: "section" as const,
+    text: {
+      type: "mrkdwn" as const,
+      text: `\`\`\`\n${formattedOutput}\n\`\`\``,
+    },
+  });
+
   static createLoadingBlock = (): (Block | KnownBlock)[] => [
     {
       type: "section",
@@ -35,30 +60,13 @@ export class SlackBlockService {
     output: string,
     isRunning: boolean = true
   ): (Block | KnownBlock)[] => {
-    // Codex特有の出力処理を適用
     const formattedOutput = formatCodexForSlack(output);
     const codexCommand = extractCodexCommand(output);
 
     const blocks: (Block | KnownBlock)[] = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
-        },
-      },
+      ...SlackBlockService.createCommandBlock(codexCommand, "実行中"),
+      SlackBlockService.createOutputSection(formattedOutput),
     ];
-
-    // コマンドが検出された場合、それを表示
-    if (codexCommand) {
-      blocks.unshift({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `💻 実行中: \`${codexCommand}\``,
-        },
-      });
-    }
 
     if (isRunning) {
       blocks.push({
@@ -85,79 +93,40 @@ export class SlackBlockService {
     output: string,
     code: number | null
   ): (Block | KnownBlock)[] => {
-    // Codex特有の出力処理を適用
     const formattedOutput = formatCodexForSlack(output);
     const codexCommand = extractCodexCommand(output);
 
-    const blocks: (Block | KnownBlock)[] = [];
-
-    // コマンドが検出された場合、それを表示
-    if (codexCommand) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `💻 実行完了: \`${codexCommand}\``,
-        },
-      });
-    }
-
-    blocks.push(
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
-        },
-      },
+    return [
+      ...SlackBlockService.createCommandBlock(codexCommand, "実行完了"),
+      SlackBlockService.createOutputSection(formattedOutput),
       {
         type: "section",
         text: {
           type: "mrkdwn",
           text: code === 0 ? "✅ 完了" : "❌ エラー",
         },
-      }
-    );
-
-    return blocks;
+      },
+    ];
   };
 
   static createStoppedBlock = (output: string): (Block | KnownBlock)[] => {
-    // Codex特有の出力処理を適用
     const formattedOutput = formatCodexForSlack(output);
     const codexCommand = extractCodexCommand(output);
 
-    const blocks: (Block | KnownBlock)[] = [];
-
-    // コマンドが検出された場合、それを表示
-    if (codexCommand) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `💻 停止されたコマンド: \`${codexCommand}\``,
-        },
-      });
-    }
-
-    blocks.push(
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `\`\`\`\n${formattedOutput}\n\`\`\``,
-        },
-      },
+    return [
+      ...SlackBlockService.createCommandBlock(
+        codexCommand,
+        "停止されたコマンド"
+      ),
+      SlackBlockService.createOutputSection(formattedOutput),
       {
         type: "section",
         text: {
           type: "mrkdwn",
           text: "⏹️ 停止しました",
         },
-      }
-    );
-
-    return blocks;
+      },
+    ];
   };
 
   static createInputPromptBlock = (
@@ -165,114 +134,56 @@ export class SlackBlockService {
     promptType: "explanation" | "general",
     suggestion?: string
   ): (Block | KnownBlock)[] => {
-    // Codex特有の出力処理を適用
     const formattedOutput = formatCodexForSlack(output);
     const codexCommand = extractCodexCommand(output);
 
-    const blocks: (Block | KnownBlock)[] = [];
-
-    // コマンドが検出された場合、それを表示
-    if (codexCommand) {
-      blocks.push({
+    const blocks: (Block | KnownBlock)[] = [
+      ...SlackBlockService.createCommandBlock(codexCommand, "実行中"),
+      SlackBlockService.createOutputSection(formattedOutput),
+      {
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `💻 実行中: \`${codexCommand}\``,
+          text:
+            promptType === "explanation"
+              ? "💬 Codexが説明を求めています。以下のようなメッセージを送信してください："
+              : "💬 Codexが入力を待っています。メッセージを送信してください：",
         },
-      });
-    }
-
-    // 出力表示
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `\`\`\`\n${formattedOutput}\n\`\`\``,
       },
-    });
+    ];
 
-    // 入力待ち状態の説明
-    const promptMessage =
-      promptType === "explanation"
-        ? "💬 Codexが説明を求めています。以下のようなメッセージを送信してください："
-        : "💬 Codexが入力を待っています。メッセージを送信してください：";
-
-    blocks.push({
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: promptMessage,
+    // ボタン要素を作成
+    const elements: any[] = [
+      {
+        type: "button" as const,
+        text: { type: "plain_text" as const, text: "✍️ 入力", emoji: true },
+        style: "primary" as const,
+        action_id: "open_input_modal",
+        value: JSON.stringify({ promptType, suggestion }),
       },
-    });
+    ];
 
-    // 提案がある場合のボタン
     if (suggestion) {
-      blocks.push({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "✍️ 入力",
-              emoji: true,
-            },
-            style: "primary",
-            action_id: "open_input_modal",
-            value: JSON.stringify({ promptType, suggestion }),
-          },
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: `💡 "${suggestion}"`,
-              emoji: true,
-            },
-            action_id: "send_suggestion",
-            value: suggestion,
-          },
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "⏹️ 停止",
-              emoji: true,
-            },
-            style: "danger",
-            action_id: "stop_codex",
-          },
-        ],
-      });
-    } else {
-      // 一般的な入力待ちの場合は入力ボタンと停止ボタン
-      blocks.push({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "✍️ 入力",
-              emoji: true,
-            },
-            style: "primary",
-            action_id: "open_input_modal",
-            value: JSON.stringify({ promptType: promptType || "general" }),
-          },
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "⏹️ 停止",
-              emoji: true,
-            },
-            style: "danger",
-            action_id: "stop_codex",
-          },
-        ],
+      elements.push({
+        type: "button" as const,
+        text: {
+          type: "plain_text" as const,
+          text: `💡 "${suggestion}"`,
+          emoji: true,
+        },
+        action_id: "send_suggestion",
+        value: suggestion,
       });
     }
 
+    elements.push({
+      type: "button" as const,
+      text: { type: "plain_text" as const, text: "⏹️ 停止", emoji: true },
+      style: "danger" as const,
+      action_id: "stop_codex",
+    });
+
+    blocks.push({ type: "actions", elements });
     return blocks;
   };
 

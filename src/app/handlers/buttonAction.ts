@@ -1,6 +1,6 @@
 import { CodexService } from "../../core/codex";
 import { SlackBlockService } from "../../core/slack";
-import { truncateOutput, formatCodeBlock } from "../../shared/utils";
+import { truncateOutput } from "../../shared/utils";
 import { logger } from "../../infrastructure/logger";
 
 // 出力を蓄積するためのマップ（シングルトンパターンで管理）

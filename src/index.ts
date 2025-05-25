@@ -17,8 +17,7 @@ const startApp = async (): Promise<void> => {
 // 終了時のクリーンアップ
 const cleanup = async (): Promise<void> => {
   logger.info("⏹️ Shutting down...");
-  const codexService = CodexService.getInstance();
-  await codexService.stopAllProcesses();
+  // Codexプロセスは個別に管理されるため、プロセス終了時に自動的にクリーンアップされる
   process.exit(0);
 };
 
