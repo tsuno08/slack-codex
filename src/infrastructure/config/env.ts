@@ -10,18 +10,6 @@ export const getSlackConfig = (): SlackConfig => ({
   signingSecret: getRequiredEnv("SLACK_SIGNING_SECRET"),
 });
 
-export const getLLMConfig = (): LLMConfig => ({
-  apiKey: getRequiredEnv("LLM_API_KEY"),
-  baseUrl: getRequiredEnv("LLM_BASE_URL"),
-  model: getRequiredEnv("LLM_MODEL"),
-  provider: getRequiredEnv("LLM_PROVIDER"),
-});
-
-export const getAppConfig = (): AppConfig => ({
-  repository: getRequiredEnv("REPOSITORY"),
-  logLevel: process.env.LOG_LEVEL || "INFO",
-});
-
 const getRequiredEnv = (key: string): string => {
   const value = process.env[key];
   if (!value) {

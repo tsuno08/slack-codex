@@ -10,34 +10,4 @@ export class SlackUtils {
       .replace(/<!channel>/g, "") // @channel
       .trim();
   };
-
-  static isDirectMessage = (channelType: string): boolean => {
-    return channelType === "im";
-  };
-
-  static createThreadReply = async (
-    client: WebClient,
-    channel: string,
-    threadTs: string,
-    text: string
-  ): Promise<void> => {
-    await client.chat.postMessage({
-      channel,
-      thread_ts: threadTs,
-      text,
-    });
-  };
-
-  static createEphemeralMessage = async (
-    client: WebClient,
-    channel: string,
-    user: string,
-    text: string
-  ): Promise<void> => {
-    await client.chat.postEphemeral({
-      channel,
-      user,
-      text,
-    });
-  };
 }

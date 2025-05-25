@@ -50,10 +50,6 @@ export class Logger {
   error = (message: string, ...args: any[]): void => {
     this.log(LogLevel.ERROR, message, ...args);
   };
-
-  setLevel = (level: LogLevel): void => {
-    this.level = level;
-  };
 }
 
 // デフォルトロガーインスタンス

@@ -101,11 +101,6 @@ export class CodexService extends EventEmitter {
     return codexProcess?.isRunning() ?? false;
   };
 
-  getProcessOutput = (processKey: ProcessKey): string | null => {
-    const codexProcess = this.processes.get(processKey);
-    return codexProcess?.getOutput() ?? null;
-  };
-
   sendInput = async (
     processKey: ProcessKey,
     input: string

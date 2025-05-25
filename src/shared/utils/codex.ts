@@ -7,35 +7,6 @@ export const processCodexOutput = (rawOutput: string): string => {
     .replace(/\r/g, "\n"); // Mac古い改行コードを統一
 };
 
-export const isCodexResponseComplete = (output: string): boolean => {
-  // Codexの応答が完了したかを判定
-  // 通常、プロンプトが再度表示されるか、特定のパターンで終了する
-  const lines = output.split("\n");
-  const lastLine = lines[lines.length - 1];
-
-  // プロンプト表示やコマンド完了の一般的なパターン
-  return (
-    lastLine.includes("$") ||
-    lastLine.includes("❯") ||
-    lastLine.includes(">") ||
-    output.includes("Process finished") ||
-    output.includes("Command completed")
-  );
-};
-
-export const detectCodexCompletion = (output: string): boolean => {
-  // Codexプロセスが完了したことを検出
-  const completionPatterns = [
-    /process\s+finished/i,
-    /command\s+completed/i,
-    /execution\s+finished/i,
-    /codex\s+session\s+ended/i,
-    /^\s*[\$>❯]\s*$/m, // プロンプト表示
-  ];
-
-  return completionPatterns.some((pattern) => pattern.test(output));
-};
-
 export const extractCodexCommand = (output: string): string | null => {
   // 出力からcodexコマンドの実行部分を抽出
   const lines = output.split("\n");
@@ -47,30 +18,6 @@ export const extractCodexCommand = (output: string): string | null => {
   }
 
   return null;
-};
-
-export const extractCodexErrors = (output: string): string[] => {
-  // Codex出力からエラーメッセージを抽出
-  const errorPatterns = [
-    /error:\s*(.+)/gi,
-    /failed:\s*(.+)/gi,
-    /exception:\s*(.+)/gi,
-    /traceback/gi,
-  ];
-
-  const errors: string[] = [];
-  const lines = output.split("\n");
-
-  for (const line of lines) {
-    for (const pattern of errorPatterns) {
-      const match = pattern.exec(line);
-      if (match) {
-        errors.push(match[1] || line.trim());
-      }
-    }
-  }
-
-  return errors;
 };
 
 export const cleanCodexOutput = (output: string): string => {
