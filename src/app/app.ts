@@ -36,6 +36,13 @@ export const createApp = (): App => {
 
   // Codexからの出力を処理（5秒非アクティブ時にのみ発火される）
   codexService.on("output", async ({ channel, ts, output }) => {
+    console.log("=== OUTPUT EVENT FIRED ===");
+    console.log("Channel:", channel);
+    console.log("TS:", ts);
+    console.log("Output length:", output?.length || 0);
+    console.log("Output preview:", output?.substring(0, 100) || "No output");
+    console.log("========================");
+
     try {
       const processKey = codexService.createProcessKey(channel, ts);
 

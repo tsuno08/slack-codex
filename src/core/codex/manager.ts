@@ -20,7 +20,9 @@ export class CodexService extends EventEmitter {
   private activityTimers = new Map<ProcessKey, ActivityTimer>();
   private inactiveProcesses = new Set<ProcessKey>(); // 非アクティブ状態のプロセスを追跡
   private outputBuffer = new Map<ProcessKey, string>(); // 出力をバッファリング
+  private realtimeTimers = new Map<ProcessKey, NodeJS.Timeout>(); // リアルタイム出力用タイマー
   private readonly INACTIVITY_THRESHOLD = 5000; // 5秒
+  private readonly REALTIME_DELAY = 1000; // 1秒でリアルタイム出力
 
   private constructor() {
     super();
@@ -55,9 +57,13 @@ export class CodexService extends EventEmitter {
 
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
-      // 出力をバッファに蓄積（即座にUIには反映しない）
+      // 出力をバッファに蓄積
       const currentBuffer = this.outputBuffer.get(processKey) || "";
-      this.outputBuffer.set(processKey, currentBuffer + data);
+      const newBuffer = currentBuffer + data;
+      this.outputBuffer.set(processKey, newBuffer);
+
+      // リアルタイム出力のためのデバウンスタイマー
+      this.scheduleRealtimeOutput(processKey, channel, ts);
 
       this.resetActivityTimer(processKey, channel, ts);
     });
@@ -65,6 +71,9 @@ export class CodexService extends EventEmitter {
     codexProcess.on(
       "exit",
       (exitCode: { exitCode: number; signal?: number }) => {
+        // リアルタイムタイマーをクリア
+        this.clearRealtimeTimer(processKey);
+
         // プロセス終了時にバッファされた出力を発火
         const bufferedOutput = this.outputBuffer.get(processKey) || "";
         if (bufferedOutput) {
@@ -92,6 +101,7 @@ export class CodexService extends EventEmitter {
     const codexProcess = this.processes.get(processKey);
     if (codexProcess) {
       this.clearActivityTimer(processKey);
+      this.clearRealtimeTimer(processKey);
       await codexProcess.stop();
       this.processes.delete(processKey);
       return true;
@@ -145,7 +155,10 @@ export class CodexService extends EventEmitter {
     const timer = setTimeout(() => {
       this.inactiveProcesses.add(processKey); // 非アクティブ状態に追加
 
-      // バッファされた出力を発火
+      // リアルタイムタイマーをクリア（重複防止）
+      this.clearRealtimeTimer(processKey);
+
+      // バッファされた出力を発火（非アクティブ時のため、この時点でも出力を表示）
       const bufferedOutput = this.outputBuffer.get(processKey) || "";
       if (bufferedOutput) {
         const output: CodexOutput = { channel, ts, output: bufferedOutput };
@@ -172,6 +185,37 @@ export class CodexService extends EventEmitter {
     this.inactiveProcesses.delete(processKey);
     // バッファもクリア
     this.outputBuffer.delete(processKey);
+    // リアルタイムタイマーもクリア
+    this.clearRealtimeTimer(processKey);
+  };
+
+  private scheduleRealtimeOutput = (
+    processKey: ProcessKey,
+    channel: string,
+    ts: string
+  ): void => {
+    // 既存のリアルタイムタイマーをクリア
+    this.clearRealtimeTimer(processKey);
+
+    // 新しいタイマーを設定
+    const timer = setTimeout(() => {
+      const bufferedOutput = this.outputBuffer.get(processKey) || "";
+      if (bufferedOutput) {
+        const output: CodexOutput = { channel, ts, output: bufferedOutput };
+        this.emit("output", output);
+      }
+      this.realtimeTimers.delete(processKey);
+    }, this.REALTIME_DELAY);
+
+    this.realtimeTimers.set(processKey, timer);
+  };
+
+  private clearRealtimeTimer = (processKey: ProcessKey): void => {
+    const timer = this.realtimeTimers.get(processKey);
+    if (timer) {
+      clearTimeout(timer);
+      this.realtimeTimers.delete(processKey);
+    }
   };
 
   private clearAllActivityTimers = (): void => {
@@ -179,6 +223,9 @@ export class CodexService extends EventEmitter {
     this.activityTimers.clear();
     this.inactiveProcesses.clear();
     this.outputBuffer.clear(); // 全バッファをクリア
+    // 全リアルタイムタイマーもクリア
+    this.realtimeTimers.forEach((timer) => clearTimeout(timer));
+    this.realtimeTimers.clear();
   };
 
   isProcessInactive = (processKey: ProcessKey): boolean => {
