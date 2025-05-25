@@ -1,20 +1,6 @@
 import { WebClient } from "@slack/web-api";
 
 export class SlackUtils {
-  static formatCodeBlock = (content: string, language: string = ""): string => {
-    return `\`\`\`${language}\n${content}\n\`\`\``;
-  };
-
-  static truncateOutput = (
-    output: string,
-    maxLength: number = 2900
-  ): string => {
-    if (output.length <= maxLength) {
-      return output;
-    }
-    return "...\n" + output.slice(-(maxLength - 10));
-  };
-
   static extractMentionText = (text: string): string => {
     // ボットメンションとユーザーメンションを除去
     return text
