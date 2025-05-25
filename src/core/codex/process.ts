@@ -12,6 +12,7 @@ export class CodexProcess extends EventEmitter {
 
   constructor(private processKey: ProcessKey, private config: CodexConfig) {
     super();
+    this.config = config;
   }
 
   start = async (message: string): Promise<void> => {
