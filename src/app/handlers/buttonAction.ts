@@ -120,7 +120,17 @@ const handleSendSuggestion: SlackButtonActionHandler = async ({
 
     if (suggestion && (await codexService.isProcessRunning(processKey))) {
       // Codexプロセスに提案を送信
-      await codexService.sendInput(processKey, suggestion);
+      logger.info("Sending suggestion to Codex process", {
+        processKey,
+        suggestion,
+      });
+      const success = await codexService.sendInput(processKey, suggestion);
+
+      if (success) {
+        logger.info("Suggestion successfully sent to Codex", { processKey });
+      } else {
+        logger.error("Failed to send suggestion to Codex", { processKey });
+      }
 
       // UIを更新して送信したことを示す
       const currentOutput = outputBuffer.get(processKey);
@@ -219,7 +229,20 @@ const handleInputModalSubmission: SlackViewSubmissionHandler = async ({
 
     if (codexService.isProcessRunning(processKey)) {
       // Codexプロセスに入力を送信
-      await codexService.sendInput(processKey, inputText.trim());
+      logger.info("Sending input to Codex process", {
+        processKey,
+        inputText: inputText.trim(),
+      });
+      const success = await codexService.sendInput(
+        processKey,
+        inputText.trim()
+      );
+
+      if (success) {
+        logger.info("Input successfully sent to Codex", { processKey });
+      } else {
+        logger.error("Failed to send input to Codex", { processKey });
+      }
 
       // UIを更新して送信したことを示す
       const currentOutput = outputBuffer.get(processKey);

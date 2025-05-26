@@ -25,12 +25,14 @@ export const extractCodexCommand = (output: string): string | null => {
 export const cleanCodexOutput = (output: string): string => {
   // ANSI エスケープシーケンスを除去（ライブラリを使用）
   const cleanedOutput = stripAnsi(output);
-  
-  return cleanedOutput
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters cleanup is intentional
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // 制御文字（改行・タブ以外）
-    .replace(/\n{3,}/g, "\n\n") // 連続する空行を2行までに制限
-    .trim();
+
+  return (
+    cleanedOutput
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters cleanup is intentional
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // 制御文字（改行・タブ以外）
+      .replace(/\n{3,}/g, "\n\n") // 連続する空行を2行までに制限
+      .trim()
+  );
 };
 
 export const formatCodexForSlack = (output: string): string => {
@@ -103,13 +105,16 @@ export const detectCodexInputPrompt = (
     };
   }
 
-  // その他の入力待ちパターン
+  // その他の入力待ちパターン（Enterキー送信が必要なパターンを追加）
   const inputPromptPatterns = [
     /press\s+enter/i,
     /waiting\s+for\s+input/i,
     /enter\s+your\s+response/i,
     /type\s+your\s+message/i,
+    /enter\s+to\s+continue/i, // 追加
+    /press\s+return/i, // 追加
     />\s*$/m, // プロンプト記号で終わる
+    /:\s*$/m, // コロンで終わる入力待ち
   ];
 
   const hasInputPrompt = inputPromptPatterns.some((pattern) =>

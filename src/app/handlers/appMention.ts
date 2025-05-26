@@ -65,7 +65,17 @@ export const handleAppMention: SlackAppMentionHandler = async ({
           input: task,
         });
 
-        await codexService.sendInput(runningProcessKey, task);
+        const success = await codexService.sendInput(runningProcessKey, task);
+
+        if (success) {
+          logger.info("Input successfully sent to running Codex process", {
+            processKey: runningProcessKey,
+          });
+        } else {
+          logger.error("Failed to send input to running Codex process", {
+            processKey: runningProcessKey,
+          });
+        }
 
         // UIを更新して送信したことを示す
         const currentOutput = outputBuffer.get(runningProcessKey);

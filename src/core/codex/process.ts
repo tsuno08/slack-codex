@@ -10,10 +10,7 @@ export class CodexProcess extends EventEmitter {
   private outputBuffer = "";
   private lastEmittedLength = 0;
 
-  constructor(
-    private processKey: ProcessKey,
-    private config: CodexConfig
-  ) {
+  constructor(private processKey: ProcessKey, private config: CodexConfig) {
     super();
   }
 
@@ -69,11 +66,17 @@ export class CodexProcess extends EventEmitter {
       );
     }
 
-    // 入力を送信（改行を追加）
+    // 入力を送信（改行を追加してEnterキーを送信）
     const inputWithNewline = input.endsWith("\n") ? input : `${input}\n`;
     this.process.write(inputWithNewline);
 
+    // Enterキーを確実に送信するため、追加でリターンキーを送信
+    // これにより対話式プロンプトでの入力が確実に処理される
+    await new Promise((resolve) => setTimeout(resolve, 50)); // 少し待機
+    this.process.write("\r"); // キャリッジリターン（Enter確定）
+
     logger.debug(`Sent input to Codex process [${this.processKey}]:`, input);
+    logger.debug(`Sent enter key to Codex process [${this.processKey}]`);
   };
 
   private handleData = (data: string): void => {
