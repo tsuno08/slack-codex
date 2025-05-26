@@ -21,15 +21,15 @@ export class CodexService extends EventEmitter {
     return CodexService.instance;
   };
 
-  startProcess = async (
+  startProcess = (
     message: string,
     channel: string,
     ts: string
-  ): Promise<ProcessKey> => {
+  ): ProcessKey => {
     const processKey = this.createProcessKey(channel, ts);
     logger.info(`Starting Codex process for ${processKey}`, { message });
 
-    await this.stopProcess(processKey);
+    this.stopProcess(processKey);
 
     const codexProcess = new CodexProcess(processKey);
     this.processes.set(processKey, codexProcess);
@@ -49,15 +49,15 @@ export class CodexService extends EventEmitter {
       }
     );
 
-    await codexProcess.start(message);
+    codexProcess.start(message);
 
     return processKey;
   };
 
-  stopProcess = async (processKey: ProcessKey): Promise<boolean> => {
+  stopProcess = (processKey: ProcessKey): boolean => {
     const codexProcess = this.processes.get(processKey);
     if (codexProcess) {
-      await codexProcess.stop();
+      codexProcess.stop();
       this.processes.delete(processKey);
       return true;
     }
@@ -70,13 +70,13 @@ export class CodexService extends EventEmitter {
     return codexProcess?.isRunning() ?? false;
   };
 
-  sendInput = async (
+  sendInput = (
     processKey: ProcessKey,
     input: string
-  ): Promise<boolean> => {
+  ): boolean => {
     const codexProcess = this.processes.get(processKey);
     if (codexProcess?.isRunning()) {
-      await codexProcess.sendInput(input);
+      codexProcess.sendInput(input);
       return true;
     }
     logger.warn(`Cannot send input to process [${processKey}]: not running`);
