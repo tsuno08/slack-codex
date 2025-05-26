@@ -8,7 +8,13 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "clean": "rm -rf dist",
-    "setup": "cp .env.example .env"
+    "setup": "cp .env.example .env",
+    "lint": "biome lint src/",
+    "lint:fix": "biome lint --write src/",
+    "format": "biome format src/",
+    "format:fix": "biome format --write src/",
+    "check": "biome check src/",
+    "check:fix": "biome check --write src/"
   },
   "keywords": [
     "slack",
@@ -28,6 +34,7 @@
     "node-pty": "^1.0.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.15.21",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3"
