@@ -1,24 +1,22 @@
 import { CodexService } from "../../core/codex/manager";
-import { SlackBlockService } from "../../core/slack/blocks";
-import { SlackUtils } from "../../core/slack/utils";
-import { detectCodexInputPrompt } from "../../shared/utils/codex";
-import { ProcessKey } from "../../shared/types/codex";
+import { createLoadingBlock, createOutputBlock } from "../../core/slack/blocks";
+import { extractMentionText } from "../../core/slack/utils";
 import { logger } from "../../infrastructure/logger/logger";
+import type { ProcessKey } from "../../shared/types/codex";
+import type { SlackAppMentionHandler } from "../../shared/types/slack";
+import { detectCodexInputPrompt } from "../../shared/utils/codex";
 import { outputBuffer } from "./buttonAction";
 
-export const handleAppMention = async ({
+export const handleAppMention: SlackAppMentionHandler = async ({
   event,
   client,
-}: {
-  event: any;
-  client: any;
 }) => {
   try {
     const { channel, text, ts, user } = event;
     logger.info("Received app mention", { channel, user, ts });
 
     // ボットのメンション部分を除去してタスクを取得
-    const task = SlackUtils.extractMentionText(text);
+    const task = extractMentionText(text);
 
     if (!task) {
       logger.warn("Empty task received", { channel, user, ts });
@@ -71,7 +69,7 @@ export const handleAppMention = async ({
 
         // UIを更新して送信したことを示す
         const currentOutput = outputBuffer.get(runningProcessKey);
-        const updatedOutput = currentOutput + `\n> ${task}`;
+        const updatedOutput = `${currentOutput}\n> ${task}`;
         outputBuffer.set(runningProcessKey, updatedOutput);
 
         // 元のメッセージを見つけて更新
@@ -79,13 +77,13 @@ export const handleAppMention = async ({
         await client.chat.update({
           channel: channel,
           ts: messageTs,
-          blocks: SlackBlockService.createOutputBlock(updatedOutput, true),
+          blocks: createOutputBlock(updatedOutput, true),
         });
 
         return;
       }
     } catch (error) {
-      logger.warn("Failed to check for running processes", error);
+      logger.warn("Failed to check for running processes", error as Error);
       // エラーが発生しても新しいプロセスとして続行
     }
 
@@ -95,7 +93,7 @@ export const handleAppMention = async ({
     const response = await client.chat.postMessage({
       channel: channel,
       text: "🔄 Codexを起動しています...",
-      blocks: SlackBlockService.createLoadingBlock(),
+      blocks: createLoadingBlock(),
       thread_ts: ts,
     });
 
@@ -108,7 +106,7 @@ export const handleAppMention = async ({
       const codexService = CodexService.getInstance();
       await codexService.startProcess(task, channel, response.ts);
     } catch (error) {
-      logger.error("Failed to start Codex process", error);
+      logger.error("Failed to start Codex process", error as Error);
       await client.chat.postMessage({
         channel: channel,
         text: "❌ Codexプロセスの起動に失敗しました。",
@@ -117,7 +115,7 @@ export const handleAppMention = async ({
       return;
     }
   } catch (error) {
-    logger.error("Error in app_mention handler:", error);
+    logger.error("Error in app_mention handler:", error as Error);
     await client.chat.postMessage({
       channel: event.channel,
       text: "❌ エラーが発生しました。",

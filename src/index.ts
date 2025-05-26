@@ -1,5 +1,4 @@
 import { createApp } from "./app/app";
-import { CodexService } from "./core/codex/manager";
 import { logger } from "./infrastructure/logger/logger";
 
 // アプリケーションを開始
@@ -9,7 +8,7 @@ const startApp = async (): Promise<void> => {
     await app.start();
     logger.info("⚡️ Slack Codex Bot is running!");
   } catch (error) {
-    logger.error("Failed to start the app:", error);
+    logger.error("Failed to start the app:", error as Error);
     process.exit(1);
   }
 };

@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { SlackConfig } from "../../shared/types/slack";
+import type { SlackConfig } from "../../shared/types/slack";
 
 dotenv.config();
 

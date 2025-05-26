@@ -1,9 +1,6 @@
-export const truncateOutput = (
-  output: string,
-  maxLength: number = 2900
-): string => {
+export const truncateOutput = (output: string, maxLength = 2900): string => {
   if (output.length <= maxLength) {
     return output;
   }
-  return "...\n" + output.slice(-(maxLength - 10));
+  return `...\n${output.slice(-(maxLength - 10))}`;
 };

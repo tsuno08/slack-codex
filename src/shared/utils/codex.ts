@@ -22,12 +22,17 @@ export const extractCodexCommand = (output: string): string | null => {
 
 export const cleanCodexOutput = (output: string): string => {
   // ANSI エスケープシーケンスと不要な制御文字を除去
-  return output
-    .replace(/\x1b\[[0-9;]*m/g, "") // ANSI カラーコード
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "") // その他のANSIエスケープ
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // 制御文字（改行・タブ以外）
-    .replace(/\n{3,}/g, "\n\n") // 連続する空行を2行までに制限
-    .trim();
+  return (
+    output
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences are intentional
+      .replace(/\x1b\[[0-9;]*m/g, "") // ANSI カラーコード
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences are intentional
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "") // その他のANSIエスケープ
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: Control characters cleanup is intentional
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // 制御文字（改行・タブ以外）
+      .replace(/\n{3,}/g, "\n\n") // 連続する空行を2行までに制限
+      .trim()
+  );
 };
 
 export const formatCodexForSlack = (output: string): string => {

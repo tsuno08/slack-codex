@@ -5,6 +5,16 @@ export enum LogLevel {
   ERROR = 3,
 }
 
+// ログ引数として受け入れ可能な型
+type LogArgument =
+  | string
+  | number
+  | boolean
+  | object
+  | null
+  | undefined
+  | Error;
+
 export class Logger {
   private level: LogLevel;
 
@@ -12,7 +22,11 @@ export class Logger {
     this.level = level;
   }
 
-  private log = (level: LogLevel, message: string, ...args: any[]): void => {
+  private log = (
+    level: LogLevel,
+    message: string,
+    ...args: LogArgument[]
+  ): void => {
     if (level < this.level) return;
 
     const timestamp = new Date().toISOString();
@@ -35,19 +49,19 @@ export class Logger {
     }
   };
 
-  debug = (message: string, ...args: any[]): void => {
+  debug = (message: string, ...args: LogArgument[]): void => {
     this.log(LogLevel.DEBUG, message, ...args);
   };
 
-  info = (message: string, ...args: any[]): void => {
+  info = (message: string, ...args: LogArgument[]): void => {
     this.log(LogLevel.INFO, message, ...args);
   };
 
-  warn = (message: string, ...args: any[]): void => {
+  warn = (message: string, ...args: LogArgument[]): void => {
     this.log(LogLevel.WARN, message, ...args);
   };
 
-  error = (message: string, ...args: any[]): void => {
+  error = (message: string, ...args: LogArgument[]): void => {
     this.log(LogLevel.ERROR, message, ...args);
   };
 }

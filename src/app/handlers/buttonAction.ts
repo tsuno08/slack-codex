@@ -1,7 +1,24 @@
 import { CodexService } from "../../core/codex/manager";
-import { SlackBlockService } from "../../core/slack/blocks";
-import { truncateOutput } from "../../shared/utils/string";
+import {
+  createInputModal,
+  createOutputBlock,
+  createStoppedBlock,
+} from "../../core/slack/blocks";
 import { logger } from "../../infrastructure/logger/logger";
+import type {
+  SlackButtonActionHandler,
+  SlackViewSubmissionHandler,
+} from "../../shared/types/slack";
+import { truncateOutput } from "../../shared/utils/string";
+
+// ボタンの値を取得するためのタイプガード
+type ButtonActionWithValue = {
+  value?: string;
+};
+
+const hasValue = (action: unknown): action is ButtonActionWithValue => {
+  return typeof action === "object" && action !== null && "value" in action;
+};
 
 // 出力を蓄積するためのマップ（シングルトンパターンで管理）
 class OutputBufferManager {
@@ -35,19 +52,22 @@ class OutputBufferManager {
 
 const outputBuffer = OutputBufferManager.getInstance();
 
-export const handleStopButton = async ({
+export const handleStopButton: SlackButtonActionHandler = async ({
   ack,
   body,
   client,
-}: {
-  ack: any;
-  body: any;
-  client: any;
 }) => {
   await ack();
 
   try {
-    const { channel, message } = body as any;
+    const channel = body.channel;
+    const message = body.message;
+
+    if (!channel?.id || !message?.ts) {
+      logger.error("Missing channel or message data in stop button handler");
+      return;
+    }
+
     const codexService = CodexService.getInstance();
     const processKey = codexService.createProcessKey(channel.id, message.ts);
 
@@ -59,7 +79,7 @@ export const handleStopButton = async ({
       await client.chat.update({
         channel: channel.id,
         ts: message.ts,
-        blocks: SlackBlockService.createStoppedBlock(currentOutput),
+        blocks: createStoppedBlock(currentOutput),
       });
 
       outputBuffer.delete(processKey);
@@ -71,26 +91,30 @@ export const handleStopButton = async ({
       });
     }
   } catch (error) {
-    logger.error("Error handling stop button:", error);
+    logger.error("Error handling stop button:", error as Error);
   }
 };
 
-const handleSendSuggestion = async ({
+const handleSendSuggestion: SlackButtonActionHandler = async ({
   ack,
   body,
   client,
-}: {
-  ack: any;
-  body: any;
-  client: any;
 }) => {
   await ack();
 
   try {
-    const { channel, message, actions } = body as any;
+    const channel = body.channel;
+    const message = body.message;
+    const actions = body.actions;
+
+    if (!channel?.id || !message?.ts || !actions?.[0]) {
+      logger.error("Missing data in send suggestion handler");
+      return;
+    }
+
     const codexService = CodexService.getInstance();
     const processKey = codexService.createProcessKey(channel.id, message.ts);
-    const suggestion = actions[0]?.value;
+    const suggestion = hasValue(actions[0]) ? actions[0].value : undefined;
 
     logger.info("Suggestion button pressed", { processKey, suggestion });
 
@@ -100,16 +124,13 @@ const handleSendSuggestion = async ({
 
       // UIを更新して送信したことを示す
       const currentOutput = outputBuffer.get(processKey);
-      const updatedOutput = currentOutput + `\n> ${suggestion}`;
+      const updatedOutput = `${currentOutput}\n> ${suggestion}`;
       outputBuffer.set(processKey, updatedOutput);
 
       await client.chat.update({
         channel: channel.id,
         ts: message.ts,
-        blocks: SlackBlockService.createOutputBlock(
-          truncateOutput(updatedOutput),
-          true
-        ),
+        blocks: createOutputBlock(truncateOutput(updatedOutput), true),
       });
     } else {
       await client.chat.postEphemeral({
@@ -119,26 +140,34 @@ const handleSendSuggestion = async ({
       });
     }
   } catch (error) {
-    logger.error("Error handling suggestion button:", error);
+    logger.error("Error handling suggestion button:", error as Error);
   }
 };
 
-const handleOpenInputModal = async ({
+const handleOpenInputModal: SlackButtonActionHandler = async ({
   ack,
   body,
   client,
-}: {
-  ack: any;
-  body: any;
-  client: any;
 }) => {
   await ack();
 
   try {
-    const { channel, message, actions, trigger_id } = body as any;
+    const channel = body.channel;
+    const message = body.message;
+    const actions = body.actions;
+    const trigger_id = body.trigger_id;
+
+    if (!channel?.id || !message?.ts || !actions?.[0] || !trigger_id) {
+      logger.error("Missing data in open input modal handler");
+      return;
+    }
+
     const codexService = CodexService.getInstance();
     const processKey = codexService.createProcessKey(channel.id, message.ts);
-    const buttonValue = JSON.parse(actions[0]?.value || "{}");
+    const buttonValueString = hasValue(actions[0])
+      ? actions[0].value || "{}"
+      : "{}";
+    const buttonValue = JSON.parse(buttonValueString);
 
     logger.info("Open input modal button pressed", { processKey, buttonValue });
 
@@ -146,7 +175,7 @@ const handleOpenInputModal = async ({
       // モーダルを開く
       await client.views.open({
         trigger_id: trigger_id,
-        view: SlackBlockService.createInputModal(
+        view: createInputModal(
           processKey,
           buttonValue.promptType || "general",
           buttonValue.suggestion
@@ -160,23 +189,19 @@ const handleOpenInputModal = async ({
       });
     }
   } catch (error) {
-    logger.error("Error handling open input modal button:", error);
+    logger.error("Error handling open input modal button:", error as Error);
   }
 };
 
-const handleInputModalSubmission = async ({
+const handleInputModalSubmission: SlackViewSubmissionHandler = async ({
   ack,
   body,
   client,
-}: {
-  ack: any;
-  body: any;
-  client: any;
 }) => {
   await ack();
 
   try {
-    const { view } = body as any;
+    const view = body.view;
     const privateMetadata = JSON.parse(view.private_metadata);
     const { processKey } = privateMetadata;
 
@@ -198,7 +223,7 @@ const handleInputModalSubmission = async ({
 
       // UIを更新して送信したことを示す
       const currentOutput = outputBuffer.get(processKey);
-      const updatedOutput = currentOutput + `\n> ${inputText.trim()}`;
+      const updatedOutput = `${currentOutput}\n> ${inputText.trim()}`;
       outputBuffer.set(processKey, updatedOutput);
 
       // プロセスキーから channel と ts を抽出
@@ -207,16 +232,13 @@ const handleInputModalSubmission = async ({
       await client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: SlackBlockService.createOutputBlock(
-          truncateOutput(updatedOutput),
-          true
-        ),
+        blocks: createOutputBlock(truncateOutput(updatedOutput), true),
       });
     } else {
       logger.warn("Cannot send input: process not running", { processKey });
     }
   } catch (error) {
-    logger.error("Error handling input modal submission:", error);
+    logger.error("Error handling input modal submission:", error as Error);
   }
 };
 

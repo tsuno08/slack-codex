@@ -1,16 +1,22 @@
 import { App } from "@slack/bolt";
+import type { Block, KnownBlock } from "@slack/types";
 import { CodexService } from "../core/codex/manager";
-import { SlackBlockService } from "../core/slack/blocks";
-import { truncateOutput } from "../shared/utils/string";
-import { detectCodexInputPrompt } from "../shared/utils/codex";
-import { logger } from "../infrastructure/logger/logger";
+import {
+  createCompletedBlock,
+  createInputPromptBlock,
+  createOutputBlock,
+  createOutputWithInactivityBlock,
+} from "../core/slack/blocks";
 import { initializeConfig } from "../infrastructure/config/env";
+import { logger } from "../infrastructure/logger/logger";
+import { detectCodexInputPrompt } from "../shared/utils/codex";
+import { truncateOutput } from "../shared/utils/string";
 import { handleAppMention } from "./handlers/appMention";
 import {
-  handleStopButton,
-  handleSendSuggestion,
-  handleOpenInputModal,
   handleInputModalSubmission,
+  handleOpenInputModal,
+  handleSendSuggestion,
+  handleStopButton,
   outputBuffer,
 } from "./handlers/buttonAction";
 
@@ -49,17 +55,17 @@ export const createApp = (): App => {
       // 入力待ち状態を検出
       const inputPrompt = detectCodexInputPrompt(newOutput);
 
-      let blocks;
+      let blocks: (Block | KnownBlock)[];
       if (inputPrompt.isWaitingForInput && inputPrompt.promptType) {
         // 入力待ち状態用のUI
-        blocks = SlackBlockService.createInputPromptBlock(
+        blocks = createInputPromptBlock(
           truncateOutput(newOutput),
           inputPrompt.promptType,
           inputPrompt.suggestion
         );
       } else {
         // 通常の出力用のUI
-        blocks = SlackBlockService.createOutputBlock(
+        blocks = createOutputBlock(
           truncateOutput(newOutput),
           codexService.isProcessRunning(processKey)
         );
@@ -71,7 +77,7 @@ export const createApp = (): App => {
         blocks: blocks,
       });
     } catch (error) {
-      logger.error("Error updating message with data:", error);
+      logger.error("Error updating message with data:", error as Error);
     }
   });
 
@@ -84,12 +90,12 @@ export const createApp = (): App => {
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: SlackBlockService.createCompletedBlock(finalOutput, code),
+        blocks: createCompletedBlock(finalOutput, code),
       });
 
       outputBuffer.delete(processKey);
     } catch (error) {
-      logger.error("Error handling process close:", error);
+      logger.error("Error handling process close:", error as Error);
     }
   });
 
@@ -119,13 +125,13 @@ export const createApp = (): App => {
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: SlackBlockService.createOutputWithInactivityBlock(
+        blocks: createOutputWithInactivityBlock(
           truncateOutput(currentOutput),
           true
         ),
       });
     } catch (error) {
-      logger.error("Error handling inactivity:", error);
+      logger.error("Error handling inactivity:", error as Error);
     }
   });
 
@@ -134,7 +140,7 @@ export const createApp = (): App => {
     try {
       const processKey = codexService.createProcessKey(channel, ts);
       const currentOutput = outputBuffer.get(processKey);
-      const errorOutput = currentOutput + `\nError: ${error}`;
+      const errorOutput = `${currentOutput}\nError: ${error}`;
 
       await app.client.chat.update({
         channel: channel,
@@ -159,7 +165,7 @@ export const createApp = (): App => {
 
       outputBuffer.delete(processKey);
     } catch (updateError) {
-      logger.error("Error updating message with error:", updateError);
+      logger.error("Error updating message with error:", updateError as Error);
     }
   });
 

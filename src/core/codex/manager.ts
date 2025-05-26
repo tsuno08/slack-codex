@@ -1,7 +1,11 @@
 import { EventEmitter } from "events";
-import { CodexProcess } from "./process";
-import { ProcessKey, CodexConfig, CodexClose } from "../../shared/types/codex";
 import { logger } from "../../infrastructure/logger/logger";
+import type {
+  CodexClose,
+  CodexConfig,
+  ProcessKey,
+} from "../../shared/types/codex";
+import { CodexProcess } from "./process";
 
 export class CodexService extends EventEmitter {
   private static instance: CodexService;
@@ -77,7 +81,7 @@ export class CodexService extends EventEmitter {
     input: string
   ): Promise<boolean> => {
     const codexProcess = this.processes.get(processKey);
-    if (codexProcess && codexProcess.isRunning()) {
+    if (codexProcess?.isRunning()) {
       await codexProcess.sendInput(input);
       return true;
     }

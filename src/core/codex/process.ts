@@ -1,16 +1,19 @@
 import { EventEmitter } from "events";
 import * as pty from "node-pty";
-import { ProcessKey, CodexConfig } from "../../shared/types/codex";
 import { CONSTANTS } from "../../infrastructure/config/constants";
 import { logger } from "../../infrastructure/logger/logger";
-import { processCodexOutput, cleanCodexOutput } from "../../shared/utils/codex";
+import type { CodexConfig, ProcessKey } from "../../shared/types/codex";
+import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
 
 export class CodexProcess extends EventEmitter {
   private process: pty.IPty | null = null;
-  private outputBuffer: string = "";
-  private lastEmittedLength: number = 0;
+  private outputBuffer = "";
+  private lastEmittedLength = 0;
 
-  constructor(private processKey: ProcessKey, private config: CodexConfig) {
+  constructor(
+    private processKey: ProcessKey,
+    private config: CodexConfig
+  ) {
     super();
   }
 
@@ -67,7 +70,7 @@ export class CodexProcess extends EventEmitter {
     }
 
     // 入力を送信（改行を追加）
-    const inputWithNewline = input.endsWith("\n") ? input : input + "\n";
+    const inputWithNewline = input.endsWith("\n") ? input : `${input}\n`;
     this.process.write(inputWithNewline);
 
     logger.debug(`Sent input to Codex process [${this.processKey}]:`, input);
