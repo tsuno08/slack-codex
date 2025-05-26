@@ -34,6 +34,12 @@ export const createApp = (): App => {
   // Codex サービスを初期化
   const codexService = CodexService.getInstance();
 
+  // State maps for new processing logic
+  const partialLineInput = new Map<string, string>();
+  const accumulatedSlackContent = new Map<string, string>();
+  const isExpectingContentLine = new Map<string, boolean>();
+  const shouldIgnoreProcess = new Map<string, boolean>();
+
   // イベントハンドラーの登録
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
@@ -44,29 +50,63 @@ export const createApp = (): App => {
   // Codexからのデータ出力を処理
   codexService.on("data", async ({ processKey, data }) => {
     try {
-      // outputBufferに出力を蓄積
-      const currentOutput = outputBuffer.get(processKey) || "";
-      const newOutput = currentOutput + data;
-      outputBuffer.set(processKey, newOutput);
+      // Raw output is still stored in outputBuffer as before
+      const currentRawOutput = outputBuffer.get(processKey) || "";
+      const newRawOutput = currentRawOutput + data;
+      outputBuffer.set(processKey, newRawOutput);
 
-      // プロセスキーからchannel, tsを取得
+      // New processing logic for Slack display
+      let currentPartial = partialLineInput.get(processKey) || "";
+      let currentDisplay = accumulatedSlackContent.get(processKey) || "";
+      let expectingContent = isExpectingContentLine.get(processKey) || false;
+      let ignoreOutput = shouldIgnoreProcess.get(processKey) || false;
+
+      const incomingData = currentPartial + data;
+      const lines = incomingData.split('\n');
+      currentPartial = lines.pop() || ""; // Last element is new partial or empty
+
+      for (const line of lines) {
+        if (ignoreOutput) {
+          continue;
+        }
+
+        const trimmedLine = line.trim();
+
+        if (expectingContent) {
+          if (trimmedLine === "╭────────────────────────") {
+            ignoreOutput = true;
+            shouldIgnoreProcess.set(processKey, true);
+          } else {
+            currentDisplay += `${line}\n`; // Add the original line with its spacing
+          }
+          expectingContent = false; // Consume the expectation
+        } else if (trimmedLine === "codex") {
+          expectingContent = true;
+        }
+        // Otherwise, line is ignored (not "codex" and not expected content)
+      }
+
+      partialLineInput.set(processKey, currentPartial);
+      accumulatedSlackContent.set(processKey, currentDisplay);
+      isExpectingContentLine.set(processKey, expectingContent);
+      // shouldIgnoreProcess is set above if the marker is found
+
       const [channel, ts] = processKey.split("-");
 
-      // 入力待ち状態を検出
-      const inputPrompt = detectCodexInputPrompt(newOutput);
+      // Use the processed display content for Slack updates
+      const displayContentForSlack = currentDisplay.trimEnd(); // Trim trailing newline for display
+      const inputPrompt = detectCodexInputPrompt(displayContentForSlack);
 
       let blocks: (Block | KnownBlock)[];
       if (inputPrompt.isWaitingForInput && inputPrompt.promptType) {
-        // 入力待ち状態用のUI
         blocks = createInputPromptBlock(
-          truncateOutput(newOutput),
+          truncateOutput(displayContentForSlack),
           inputPrompt.promptType,
           inputPrompt.suggestion
         );
       } else {
-        // 通常の出力用のUI
         blocks = createOutputBlock(
-          truncateOutput(newOutput),
+          truncateOutput(displayContentForSlack),
           codexService.isProcessRunning(processKey)
         );
       }
@@ -85,15 +125,20 @@ export const createApp = (): App => {
   codexService.on("close", async ({ channel, ts, code }) => {
     try {
       const processKey = codexService.createProcessKey(channel, ts);
-      const finalOutput = outputBuffer.get(processKey);
+      const finalOutputForSlack = accumulatedSlackContent.get(processKey)?.trimEnd() || "";
 
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: createCompletedBlock(finalOutput, code),
+        blocks: createCompletedBlock(finalOutputForSlack, code),
       });
 
       outputBuffer.delete(processKey);
+      // Clean up new state maps
+      partialLineInput.delete(processKey);
+      accumulatedSlackContent.delete(processKey);
+      isExpectingContentLine.delete(processKey);
+      shouldIgnoreProcess.delete(processKey);
     } catch (error) {
       logger.error("Error handling process close:", error as Error);
     }
@@ -109,11 +154,8 @@ export const createApp = (): App => {
         return; // プロセスが停止していれば何もしない
       }
 
-      // 外部のoutputBufferから現在の出力を取得
-      const currentOutput = outputBuffer.get(processKey);
-
-      // 入力待ち状態をチェック
-      const inputPrompt = detectCodexInputPrompt(currentOutput);
+      const currentDisplayForInactivity = accumulatedSlackContent.get(processKey)?.trimEnd() || "";
+      const inputPrompt = detectCodexInputPrompt(currentDisplayForInactivity);
 
       if (inputPrompt.isWaitingForInput) {
         return; // 入力待ち状態ならローディング表示しない
@@ -121,12 +163,11 @@ export const createApp = (): App => {
 
       logger.info("Showing inactivity loading for process", { processKey });
 
-      // 非アクティブ状態を含む出力ブロックを表示
       await app.client.chat.update({
         channel: channel,
         ts: ts,
         blocks: createOutputWithInactivityBlock(
-          truncateOutput(currentOutput),
+          truncateOutput(currentDisplayForInactivity),
           true
         ),
       });
