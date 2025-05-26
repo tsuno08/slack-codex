@@ -1,6 +1,6 @@
 import { createApp } from "./app/app";
-import { CodexService } from "./core/codex";
-import { logger } from "./infrastructure/logger";
+import { CodexService } from "./core/codex/manager";
+import { logger } from "./infrastructure/logger/logger";
 
 // アプリケーションを開始
 const startApp = async (): Promise<void> => {

@@ -1,5 +1,8 @@
 import { Block, KnownBlock } from "@slack/types";
-import { formatCodexForSlack, extractCodexCommand } from "../../shared/utils";
+import {
+  formatCodexForSlack,
+  extractCodexCommand,
+} from "../../shared/utils/codex";
 
 export class SlackBlockService {
   // 共通のヘルパーメソッド

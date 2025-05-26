@@ -1,8 +1,9 @@
-import { CodexService } from "../../core/codex";
-import { SlackBlockService, SlackUtils } from "../../core/slack";
-import { detectCodexInputPrompt } from "../../shared/utils";
+import { CodexService } from "../../core/codex/manager";
+import { SlackBlockService } from "../../core/slack/blocks";
+import { SlackUtils } from "../../core/slack/utils";
+import { detectCodexInputPrompt } from "../../shared/utils/codex";
 import { ProcessKey } from "../../shared/types/codex";
-import { logger } from "../../infrastructure/logger";
+import { logger } from "../../infrastructure/logger/logger";
 import { outputBuffer } from "./buttonAction";
 
 export const handleAppMention = async ({

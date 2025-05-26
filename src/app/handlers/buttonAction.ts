@@ -1,7 +1,7 @@
-import { CodexService } from "../../core/codex";
-import { SlackBlockService } from "../../core/slack";
-import { truncateOutput } from "../../shared/utils";
-import { logger } from "../../infrastructure/logger";
+import { CodexService } from "../../core/codex/manager";
+import { SlackBlockService } from "../../core/slack/blocks";
+import { truncateOutput } from "../../shared/utils/string";
+import { logger } from "../../infrastructure/logger/logger";
 
 // 出力を蓄積するためのマップ（シングルトンパターンで管理）
 class OutputBufferManager {

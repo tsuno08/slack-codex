@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { CodexProcess } from "./process";
 import { ProcessKey, CodexConfig, CodexClose } from "../../shared/types/codex";
-import { logger } from "../../infrastructure/logger";
+import { logger } from "../../infrastructure/logger/logger";
 
 export class CodexService extends EventEmitter {
   private static instance: CodexService;

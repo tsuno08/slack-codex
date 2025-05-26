@@ -1,9 +1,9 @@
 import { EventEmitter } from "events";
 import * as pty from "node-pty";
 import { ProcessKey, CodexConfig } from "../../shared/types/codex";
-import { CONSTANTS } from "../../infrastructure/config";
-import { logger } from "../../infrastructure/logger";
-import { processCodexOutput, cleanCodexOutput } from "../../shared/utils";
+import { CONSTANTS } from "../../infrastructure/config/constants";
+import { logger } from "../../infrastructure/logger/logger";
+import { processCodexOutput, cleanCodexOutput } from "../../shared/utils/codex";
 
 export class CodexProcess extends EventEmitter {
   private process: pty.IPty | null = null;

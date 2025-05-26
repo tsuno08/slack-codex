@@ -1,17 +1,18 @@
 import { App } from "@slack/bolt";
-import { CodexService } from "../core/codex";
-import { SlackBlockService } from "../core/slack";
-import { truncateOutput, detectCodexInputPrompt } from "../shared/utils";
-import { logger } from "../infrastructure/logger";
-import { initializeConfig } from "../infrastructure/config";
+import { CodexService } from "../core/codex/manager";
+import { SlackBlockService } from "../core/slack/blocks";
+import { truncateOutput } from "../shared/utils/string";
+import { detectCodexInputPrompt } from "../shared/utils/codex";
+import { logger } from "../infrastructure/logger/logger";
+import { initializeConfig } from "../infrastructure/config/env";
+import { handleAppMention } from "./handlers/appMention";
 import {
-  handleAppMention,
   handleStopButton,
   handleSendSuggestion,
   handleOpenInputModal,
   handleInputModalSubmission,
   outputBuffer,
-} from "./handlers";
+} from "./handlers/buttonAction";
 
 export const createApp = (): App => {
   const config = initializeConfig();
