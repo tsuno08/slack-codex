@@ -1,4 +1,4 @@
-import type { Block, KnownBlock, Button, ModalView } from "@slack/types";
+import type { Block, KnownBlock, ModalView } from "@slack/types";
 import {
   extractCodexCommand,
   formatCodexForSlack,
@@ -34,7 +34,7 @@ export const createLoadingBlock = (): (Block | KnownBlock)[] => [
     type: "section",
     text: {
       type: "mrkdwn",
-      text: "🔄 Codexを起動しています...",
+      text: "処理中...",
     },
   },
 ];
@@ -109,64 +109,26 @@ export const createStoppedBlock = (output: string): (Block | KnownBlock)[] => {
   ];
 };
 
-export const createInputPromptBlock = (
-  output: string,
-  promptType: "explanation" | "general" | "box_input",
-  suggestion?: string
-): (Block | KnownBlock)[] => {
-  const formattedOutput = formatCodexForSlack(output);
-  const codexCommand = extractCodexCommand(output);
-
-  const blocks: (Block | KnownBlock)[] = [
-    ...createCommandBlock(codexCommand, "実行中"),
-    createOutputSection(formattedOutput),
+export const createInputPromptBlock = (): (Block | KnownBlock)[] => {
+  return [
     {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text:
-          promptType === "explanation"
-            ? "💬 Codexが説明を求めています。以下のようなメッセージを送信してください："
-            : promptType === "box_input"
-            ? "💬 ボックスパターンを検出しました。続けて入力してください："
-            : "💬 Codexが入力を待っています。メッセージを送信してください：",
-      },
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "✍️ 入力", emoji: true },
+          style: "primary",
+          action_id: "open_input_modal",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "⏹️ 停止", emoji: true },
+          style: "danger",
+          action_id: "stop_codex",
+        },
+      ],
     },
   ];
-
-  // ボタン要素を作成
-  const elements: Button[] = [
-    {
-      type: "button",
-      text: { type: "plain_text", text: "✍️ 入力", emoji: true },
-      style: "primary",
-      action_id: "open_input_modal",
-      value: JSON.stringify({ promptType, suggestion }),
-    },
-  ];
-
-  if (suggestion) {
-    elements.push({
-      type: "button",
-      text: {
-        type: "plain_text",
-        text: `💡 "${suggestion}"`,
-        emoji: true,
-      },
-      action_id: "send_suggestion",
-      value: suggestion,
-    });
-  }
-
-  elements.push({
-    type: "button",
-    text: { type: "plain_text", text: "⏹️ 停止", emoji: true },
-    style: "danger",
-    action_id: "stop_codex",
-  });
-
-  blocks.push({ type: "actions", elements });
-  return blocks;
 };
 
 export const createInputModal = (

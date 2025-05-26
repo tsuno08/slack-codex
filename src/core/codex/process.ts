@@ -7,8 +7,6 @@ import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
 
 export class CodexProcess extends EventEmitter {
   private process: pty.IPty | null = null;
-  private outputBuffer = "";
-  private lastEmittedLength = 0;
 
   constructor(private processKey: ProcessKey) {
     super();
@@ -63,32 +61,10 @@ export class CodexProcess extends EventEmitter {
   };
 
   private handleData = (data: string): void => {
-    // 生データをバッファに追加
-    this.outputBuffer += data;
-
-    // Codex応答パターンに合わせて処理
-    const processedOutput = processCodexOutput(this.outputBuffer);
+    const processedOutput = processCodexOutput(data);
     const cleanedOutput = cleanCodexOutput(processedOutput);
-
     logger.debug(`Codex processed output [${this.processKey}]:`, cleanedOutput);
-
-    // 新しい出力のみを抽出してイベント発火
-    if (cleanedOutput.length > this.lastEmittedLength) {
-      const newOutput = cleanedOutput.slice(this.lastEmittedLength);
-      this.lastEmittedLength = cleanedOutput.length;
-
-      logger.debug(
-        `Codex emitting data event [${this.processKey}]:`,
-        newOutput
-      );
-
-      this.emit("data", newOutput);
-    } else {
-      logger.debug(
-        `Codex processed output [${this.processKey}]:`,
-        cleanedOutput
-      );
-    }
+    this.emit("data", cleanedOutput);
   };
 
   private handleExit = (exitCode: {

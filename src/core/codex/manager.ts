@@ -36,7 +36,6 @@ export class CodexService extends EventEmitter {
 
     // プロセスイベントの監視
     codexProcess.on("data", (data: string) => {
-      console.log("Codex process data:", data)
       this.emit("data", { processKey, data });
     });
 

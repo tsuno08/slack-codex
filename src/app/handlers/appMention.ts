@@ -65,7 +65,7 @@ export const handleAppMention: SlackAppMentionHandler = async ({
           input: task,
         });
 
-        const success = await codexService.sendInput(runningProcessKey, task);
+        const success = codexService.sendInput(runningProcessKey, task);
 
         if (success) {
           logger.info("Input successfully sent to running Codex process", {
@@ -102,7 +102,7 @@ export const handleAppMention: SlackAppMentionHandler = async ({
     // 初期のローディングメッセージを送信
     const response = await client.chat.postMessage({
       channel: channel,
-      text: "🔄 Codexを起動しています...",
+      text: "処理中...",
       blocks: createLoadingBlock(),
       thread_ts: ts,
     });
@@ -114,7 +114,7 @@ export const handleAppMention: SlackAppMentionHandler = async ({
     try {
       // Codexプロセスを開始
       const codexService = CodexService.getInstance();
-      await codexService.startProcess(task, channel, response.ts);
+      codexService.startProcess(task, channel, response.ts);
     } catch (error) {
       logger.error("Failed to start Codex process", error as Error);
       await client.chat.postMessage({
