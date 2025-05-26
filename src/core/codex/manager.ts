@@ -2,7 +2,6 @@ import { EventEmitter } from "events";
 import { logger } from "../../infrastructure/logger/logger";
 import type {
   CodexClose,
-  CodexConfig,
   ProcessKey,
 } from "../../shared/types/codex";
 import { CodexProcess } from "./process";
@@ -32,13 +31,7 @@ export class CodexService extends EventEmitter {
 
     await this.stopProcess(processKey);
 
-    const config: CodexConfig = {
-      provider: "gemini",
-      model: "gemini-2.0-flash",
-      approvalMode: "full-auto",
-    };
-
-    const codexProcess = new CodexProcess(processKey, config);
+    const codexProcess = new CodexProcess(processKey);
     this.processes.set(processKey, codexProcess);
 
     // プロセスイベントの監視

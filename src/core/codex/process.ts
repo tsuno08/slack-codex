@@ -2,7 +2,7 @@ import { EventEmitter } from "events";
 import * as pty from "node-pty";
 import { CONSTANTS } from "../../infrastructure/config/constants";
 import { logger } from "../../infrastructure/logger/logger";
-import type { CodexConfig, ProcessKey } from "../../shared/types/codex";
+import type { ProcessKey } from "../../shared/types/codex";
 import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
 
 export class CodexProcess extends EventEmitter {
@@ -10,7 +10,7 @@ export class CodexProcess extends EventEmitter {
   private outputBuffer = "";
   private lastEmittedLength = 0;
 
-  constructor(private processKey: ProcessKey, private config: CodexConfig) {
+  constructor(private processKey: ProcessKey) {
     super();
   }
 
@@ -18,11 +18,11 @@ export class CodexProcess extends EventEmitter {
     return new Promise((resolve) => {
       const args = [
         "--provider",
-        this.config.provider,
+        "gemini",
         "--model",
-        this.config.model,
+        "gemini-2.0-flash",
         "--approval-mode",
-        this.config.approvalMode,
+        "full-auto",
         message,
       ];
 
