@@ -5,7 +5,6 @@ import {
   createCompletedBlock,
   createInputPromptBlock,
   createOutputBlock,
-  createOutputWithInactivityBlock,
 } from "../core/slack/blocks";
 import { initializeConfig } from "../infrastructure/config/env";
 import { logger } from "../infrastructure/logger/logger";
@@ -40,6 +39,8 @@ export const createApp = (): App => {
   const isExpectingContentLine = new Map<string, boolean>();
   const shouldIgnoreProcess = new Map<string, boolean>();
 
+  const BOX_PATTERN_STRING = "╭──────────────────────────────────────────────────────────────────────────────╮\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯";
+
   // イベントハンドラーの登録
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
@@ -73,7 +74,7 @@ export const createApp = (): App => {
         const trimmedLine = line.trim();
 
         if (expectingContent) {
-          if (trimmedLine === "╭────────────────────────") {
+          if (trimmedLine === "╭──────────────────────────────────────────────────────────────────────────────╮") {
             ignoreOutput = true;
             shouldIgnoreProcess.set(processKey, true);
           } else {
@@ -95,20 +96,30 @@ export const createApp = (): App => {
 
       // Use the processed display content for Slack updates
       const displayContentForSlack = currentDisplay.trimEnd(); // Trim trailing newline for display
-      const inputPrompt = detectCodexInputPrompt(displayContentForSlack);
 
       let blocks: (Block | KnownBlock)[];
-      if (inputPrompt.isWaitingForInput && inputPrompt.promptType) {
-        blocks = createInputPromptBlock(
-          truncateOutput(displayContentForSlack),
-          inputPrompt.promptType,
-          inputPrompt.suggestion
-        );
-      } else {
+
+      if (displayContentForSlack.includes(BOX_PATTERN_STRING)) {
         blocks = createOutputBlock(
           truncateOutput(displayContentForSlack),
-          codexService.isProcessRunning(processKey)
+          codexService.isProcessRunning(processKey) // Keep stop button if process is running
         );
+      } else {
+        // Otherwise (box pattern NOT included), use the general input prompt detection
+        const inputPrompt = detectCodexInputPrompt(displayContentForSlack);
+        if (inputPrompt.isWaitingForInput && inputPrompt.promptType) {
+          blocks = createInputPromptBlock(
+            truncateOutput(displayContentForSlack),
+            inputPrompt.promptType, // This will be 'general' or 'explanation'
+            inputPrompt.suggestion
+          );
+        } else {
+          // No box pattern, and no other input prompt detected. Just show output.
+          blocks = createOutputBlock(
+            truncateOutput(displayContentForSlack),
+            codexService.isProcessRunning(processKey)
+          );
+        }
       }
 
       await app.client.chat.update({
@@ -141,38 +152,6 @@ export const createApp = (): App => {
       shouldIgnoreProcess.delete(processKey);
     } catch (error) {
       logger.error("Error handling process close:", error as Error);
-    }
-  });
-
-  // 非アクティビティ（5秒以上出力なし）時の処理
-  codexService.on("inactivity", async ({ channel, ts }) => {
-    try {
-      const processKey = codexService.createProcessKey(channel, ts);
-      const isRunning = codexService.isProcessRunning(processKey);
-
-      if (!isRunning) {
-        return; // プロセスが停止していれば何もしない
-      }
-
-      const currentDisplayForInactivity = accumulatedSlackContent.get(processKey)?.trimEnd() || "";
-      const inputPrompt = detectCodexInputPrompt(currentDisplayForInactivity);
-
-      if (inputPrompt.isWaitingForInput) {
-        return; // 入力待ち状態ならローディング表示しない
-      }
-
-      logger.info("Showing inactivity loading for process", { processKey });
-
-      await app.client.chat.update({
-        channel: channel,
-        ts: ts,
-        blocks: createOutputWithInactivityBlock(
-          truncateOutput(currentDisplayForInactivity),
-          true
-        ),
-      });
-    } catch (error) {
-      logger.error("Error handling inactivity:", error as Error);
     }
   });
 

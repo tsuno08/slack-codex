@@ -25,7 +25,7 @@ const createOutputSection = (formattedOutput: string) => ({
   type: "section" as const,
   text: {
     type: "mrkdwn" as const,
-    text: `\`\`\`\n${formattedOutput}\n\`\`\``,
+    text: formattedOutput || "\u00A0", // Use non-breaking space if empty
   },
 });
 
@@ -36,25 +36,6 @@ export const createLoadingBlock = (): (Block | KnownBlock)[] => [
       type: "mrkdwn",
       text: "🔄 Codexを起動しています...",
     },
-  },
-];
-
-export const createInactivityLoadingBlock = (): (Block | KnownBlock)[] => [
-  {
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: "⏳ Codexが処理中です...",
-    },
-  },
-  {
-    type: "context",
-    elements: [
-      {
-        type: "mrkdwn",
-        text: "_5秒以上出力がありません。処理が続行されています。_",
-      },
-    ],
   },
 ];
 
@@ -130,7 +111,7 @@ export const createStoppedBlock = (output: string): (Block | KnownBlock)[] => {
 
 export const createInputPromptBlock = (
   output: string,
-  promptType: "explanation" | "general",
+  promptType: "explanation" | "general" | "box_input",
   suggestion?: string
 ): (Block | KnownBlock)[] => {
   const formattedOutput = formatCodexForSlack(output);
@@ -146,6 +127,8 @@ export const createInputPromptBlock = (
         text:
           promptType === "explanation"
             ? "💬 Codexが説明を求めています。以下のようなメッセージを送信してください："
+            : promptType === "box_input"
+            ? "💬 ボックスパターンを検出しました。続けて入力してください："
             : "💬 Codexが入力を待っています。メッセージを送信してください：",
       },
     },
@@ -186,31 +169,21 @@ export const createInputPromptBlock = (
   return blocks;
 };
 
-export const createOutputWithInactivityBlock = (
-  output: string,
-  isRunning = true
-): (Block | KnownBlock)[] => {
-  // 通常の出力ブロックを取得
-  const outputBlocks = createOutputBlock(output, isRunning);
-
-  // 非アクティビティローディングブロックを追加
-  const inactivityBlocks = createInactivityLoadingBlock();
-
-  // 結合して返す
-  return [...outputBlocks, ...inactivityBlocks];
-};
-
 export const createInputModal = (
   processKey: string,
-  promptType: "explanation" | "general",
+  promptType: "explanation" | "general" | "box_input",
   suggestion?: string
 ): ModalView => {
   const titleText =
-    promptType === "explanation" ? "Codex説明入力" : "Codex入力";
+    promptType === "explanation" ? "Codex説明入力"
+    : promptType === "box_input" ? "Codex ボックス入力"
+    : "Codex入力";
 
   const placeholderText =
     promptType === "explanation"
       ? "コードベースの説明を入力してください..."
+      : promptType === "box_input"
+      ? "ボックスパターンの後に入力を続けてください..."
       : "Codexへの入力を記述してください...";
 
   return {
@@ -240,6 +213,8 @@ export const createInputModal = (
           text:
             promptType === "explanation"
               ? "💬 Codexがコードベースの説明を求めています。"
+              : promptType === "box_input"
+              ? "💬 ボックスパターンに続けて入力してください。"
               : "💬 Codexが入力を待っています。",
         },
       },
