@@ -43,23 +43,6 @@ export class CodexProcess extends EventEmitter {
     }
   };
 
-  sendInput = (input: string): void => {
-    if (!this.process) {
-      throw new Error(
-        `Cannot send input: process not running [${this.processKey}]`
-      );
-    }
-
-    // 入力を送信（改行を追加してEnterキーを送信）
-    const inputWithNewline = input.endsWith("\n") ? input : `${input}\n`;
-    this.process.write(inputWithNewline);
-
-    this.process.write("\r"); // キャリッジリターン（Enter確定）
-
-    logger.debug(`Sent input to Codex process [${this.processKey}]:`, input);
-    logger.debug(`Sent enter key to Codex process [${this.processKey}]`);
-  };
-
   private handleData = (data: string): void => {
     const processedOutput = processCodexOutput(data);
     const cleanedOutput = cleanCodexOutput(processedOutput);
@@ -77,9 +60,5 @@ export class CodexProcess extends EventEmitter {
     );
     this.process = null;
     this.emit("exit", exitCode);
-  };
-
-  isRunning = (): boolean => {
-    return this.process !== null;
   };
 }

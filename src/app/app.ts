@@ -1,6 +1,5 @@
 import { App } from "@slack/bolt";
 import { CodexService } from "../core/codex/manager";
-import { createCompletedBlock } from "../core/slack/blocks";
 import { initializeConfig } from "../infrastructure/config/env";
 import { logger } from "../infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
@@ -50,12 +49,12 @@ export const createApp = (): App => {
     }
   });
 
-  codexService.on("close", async ({ channel, ts, code }) => {
+  codexService.on("close", async ({ channel, ts }) => {
     try {
       await app.client.chat.postMessage({
         channel: channel,
         thread_ts: ts,
-        blocks: createCompletedBlock("終了しました", code),
+        text: "終了しました",
       });
     } catch (error) {
       logger.error("Error handling process close:", error as Error);

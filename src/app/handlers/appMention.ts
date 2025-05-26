@@ -1,5 +1,4 @@
 import { CodexService } from "../../core/codex/manager";
-import { createLoadingBlock } from "../../core/slack/blocks";
 import { extractMentionText } from "../../core/slack/utils";
 import { logger } from "../../infrastructure/logger/logger";
 import type { SlackAppMentionHandler } from "../../shared/types/slack";
@@ -30,9 +29,8 @@ export const handleAppMention: SlackAppMentionHandler = async ({
     // 初期のローディングメッセージを送信
     const response = await client.chat.postMessage({
       channel: channel,
-      text: "処理中...",
-      blocks: createLoadingBlock(),
       thread_ts: ts,
+      text: "処理中...",
     });
 
     if (!response.ts) {
