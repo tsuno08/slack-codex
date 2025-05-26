@@ -1,12 +1,18 @@
+import type {
+  AllMiddlewareArgs,
+  BlockAction,
+  BlockElementAction,
+  SlackActionMiddlewareArgs,
+} from "@slack/bolt";
 import { CodexService } from "../../core/codex/manager";
 import { logger } from "../../infrastructure/logger/logger";
-import type { SlackButtonActionHandler } from "../../shared/types/slack";
 
-export const handleStopButton: SlackButtonActionHandler = async ({
+export const handleStopButton = async ({
   ack,
   body,
   client,
-}) => {
+}: SlackActionMiddlewareArgs<BlockAction<BlockElementAction>> &
+  AllMiddlewareArgs) => {
   await ack();
 
   try {

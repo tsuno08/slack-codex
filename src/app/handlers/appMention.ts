@@ -1,12 +1,12 @@
+import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { CodexService } from "../../core/codex/manager";
 import { extractMentionText } from "../../core/slack/utils";
 import { logger } from "../../infrastructure/logger/logger";
-import type { SlackAppMentionHandler } from "../../shared/types/slack";
 
-export const handleAppMention: SlackAppMentionHandler = async ({
+export const handleAppMention = async ({
   event,
   client,
-}) => {
+}: SlackEventMiddlewareArgs<"app_mention"> & AllMiddlewareArgs) => {
   try {
     const { channel, text, ts, user } = event;
     logger.info("Received app mention", { channel, user, ts });
