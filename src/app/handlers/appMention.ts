@@ -1,11 +1,8 @@
 import { CodexService } from "../../core/codex/manager";
-import { createLoadingBlock, createOutputBlock } from "../../core/slack/blocks";
+import { createLoadingBlock } from "../../core/slack/blocks";
 import { extractMentionText } from "../../core/slack/utils";
 import { logger } from "../../infrastructure/logger/logger";
-import type { ProcessKey } from "../../shared/types/codex";
 import type { SlackAppMentionHandler } from "../../shared/types/slack";
-import { detectCodexInputPrompt } from "../../shared/utils/codex";
-import { outputBuffer } from "./buttonAction";
 
 export const handleAppMention: SlackAppMentionHandler = async ({
   event,
@@ -26,75 +23,6 @@ export const handleAppMention: SlackAppMentionHandler = async ({
         thread_ts: ts,
       });
       return;
-    }
-
-    // 既存の実行中プロセスを確認
-    const codexService = CodexService.getInstance();
-
-    // スレッド内で最近のメッセージから実行中のプロセスを探す
-    // より安全な方法として、最近の会話履歴を確認
-    try {
-      const conversationHistory = await client.conversations.history({
-        channel: channel,
-        limit: 10,
-      });
-
-      let runningProcessKey: ProcessKey | null = null;
-      for (const message of conversationHistory.messages || []) {
-        if (message.bot_id && message.ts) {
-          const possibleProcessKey = codexService.createProcessKey(
-            channel,
-            message.ts
-          );
-          if (codexService.isProcessRunning(possibleProcessKey)) {
-            const currentOutput = outputBuffer.get(possibleProcessKey);
-            const inputPrompt = detectCodexInputPrompt(currentOutput);
-
-            if (inputPrompt.isWaitingForInput) {
-              runningProcessKey = possibleProcessKey;
-              break;
-            }
-          }
-        }
-      }
-
-      // 入力待ち状態のプロセスがあれば、入力として送信
-      if (runningProcessKey) {
-        logger.info("Sending input to running Codex process", {
-          processKey: runningProcessKey,
-          input: task,
-        });
-
-        const success = codexService.sendInput(runningProcessKey, task);
-
-        if (success) {
-          logger.info("Input successfully sent to running Codex process", {
-            processKey: runningProcessKey,
-          });
-        } else {
-          logger.error("Failed to send input to running Codex process", {
-            processKey: runningProcessKey,
-          });
-        }
-
-        // UIを更新して送信したことを示す
-        const currentOutput = outputBuffer.get(runningProcessKey);
-        const updatedOutput = `${currentOutput}\n> ${task}`;
-        outputBuffer.set(runningProcessKey, updatedOutput);
-
-        // 元のメッセージを見つけて更新
-        const messageTs = runningProcessKey.replace(`${channel}-`, "");
-        await client.chat.update({
-          channel: channel,
-          ts: messageTs,
-          blocks: createOutputBlock(updatedOutput, true),
-        });
-
-        return;
-      }
-    } catch (error) {
-      logger.warn("Failed to check for running processes", error as Error);
-      // エラーが発生しても新しいプロセスとして続行
     }
 
     logger.info("Processing new task", { task, channel, user });

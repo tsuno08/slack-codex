@@ -4,14 +4,7 @@ import { createCompletedBlock } from "../core/slack/blocks";
 import { initializeConfig } from "../infrastructure/config/env";
 import { logger } from "../infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
-import {
-  handleInputModalSubmission,
-  handleOpenInputModal,
-  handleSendSuggestion,
-  handleStopButton,
-  // outputBuffer は buttonAction.ts からインポートして共有
-  outputBuffer, // この行は変更なし、確認のためコメント追加
-} from "./handlers/buttonAction";
+import { handleStopButton } from "./handlers/buttonAction";
 
 export const createApp = (): App => {
   const config = initializeConfig();
@@ -23,14 +16,8 @@ export const createApp = (): App => {
     socketMode: true,
   });
 
-  // outputBuffer を app.ts からも利用するためにインポート
-  const importedOutputBuffer = outputBuffer;
-
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
-  app.action("send_suggestion", handleSendSuggestion);
-  app.action("open_input_modal", handleOpenInputModal);
-  app.view("codex_input_modal", handleInputModalSubmission);
 
   const BOX_PATTERN_STRING =
     "╭──────────────────────────────────────────────────────────────────────────────╮\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯";
@@ -39,11 +26,6 @@ export const createApp = (): App => {
   codexService.on("data", async ({ processKey, data }) => {
     try {
       const [channel, ts] = processKey.split("-");
-
-      // outputBuffer を更新して、最新の出力を保持
-      const currentOutput = importedOutputBuffer.get(processKey) || "";
-      const newOutput = currentOutput + data; // data は処理済みの出力チャンク
-      importedOutputBuffer.set(processKey, newOutput);
 
       const codexRegex =
         /codex\s([\s\S]*)╭──────────────────────────────────────────────────────────────────────────────╮/;
@@ -85,9 +67,7 @@ export const createApp = (): App => {
   // エラー処理
   codexService.on("error", async ({ channel, ts, error }) => {
     try {
-      const processKey = codexService.createProcessKey(channel, ts);
-      const currentOutput = outputBuffer.get(processKey);
-      const errorOutput = `${currentOutput}\nError: ${error}`;
+      const errorOutput = `Error: ${error}`;
 
       await app.client.chat.update({
         channel: channel,
@@ -109,8 +89,6 @@ export const createApp = (): App => {
           },
         ],
       });
-
-      importedOutputBuffer.delete(processKey);
     } catch (updateError) {
       logger.error("Error updating message with error:", updateError as Error);
     }
