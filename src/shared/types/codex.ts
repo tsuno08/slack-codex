@@ -6,8 +6,3 @@ export type CodexClose = {
   ts: string;
   code: number | null;
 };
-
-export type CodexInactivity = {
-  channel: string;
-  ts: string;
-};

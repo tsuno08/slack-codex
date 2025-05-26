@@ -1,9 +1,5 @@
 import { CodexService } from "../../core/codex/manager";
-import {
-  createInputModal,
-  createOutputBlock,
-  createStoppedBlock,
-} from "../../core/slack/blocks";
+import { createOutputBlock, createStoppedBlock } from "../../core/slack/blocks";
 import { logger } from "../../infrastructure/logger/logger";
 import type {
   SlackButtonActionHandler,
@@ -40,17 +36,12 @@ class OutputBufferManager {
     return this.buffer.get(key) || "";
   };
 
-  append = (key: string, value: string): void => {
-    const current = this.buffer.get(key) || "";
-    this.buffer.set(key, current + value);
-  };
-
   delete = (key: string): void => {
     this.buffer.delete(key);
   };
 }
 
-const outputBuffer = OutputBufferManager.getInstance();
+export const outputBuffer = OutputBufferManager.getInstance();
 
 export const handleStopButton: SlackButtonActionHandler = async ({
   ack,
@@ -95,7 +86,7 @@ export const handleStopButton: SlackButtonActionHandler = async ({
   }
 };
 
-const handleSendSuggestion: SlackButtonActionHandler = async ({
+export const handleSendSuggestion: SlackButtonActionHandler = async ({
   ack,
   body,
   client,
@@ -118,13 +109,13 @@ const handleSendSuggestion: SlackButtonActionHandler = async ({
 
     logger.info("Suggestion button pressed", { processKey, suggestion });
 
-    if (suggestion && (await codexService.isProcessRunning(processKey))) {
+    if (suggestion && codexService.isProcessRunning(processKey)) {
       // Codexプロセスに提案を送信
       logger.info("Sending suggestion to Codex process", {
         processKey,
         suggestion,
       });
-      const success = await codexService.sendInput(processKey, suggestion);
+      const success = codexService.sendInput(processKey, suggestion);
 
       if (success) {
         logger.info("Suggestion successfully sent to Codex", { processKey });
@@ -154,10 +145,11 @@ const handleSendSuggestion: SlackButtonActionHandler = async ({
   }
 };
 
-const handleOpenInputModal: SlackButtonActionHandler = async ({
+export const handleOpenInputModal: SlackButtonActionHandler = async ({
   ack,
   body,
   client,
+  context,
 }) => {
   await ack();
 
@@ -165,12 +157,19 @@ const handleOpenInputModal: SlackButtonActionHandler = async ({
     const channel = body.channel;
     const message = body.message;
     const actions = body.actions;
-    const trigger_id = body.trigger_id;
+    const user = body.user;
 
-    if (!channel?.id || !message?.ts || !actions?.[0] || !trigger_id) {
+    if (!channel?.id || !message?.ts || !actions?.[0]) {
       logger.error("Missing data in open input modal handler");
+      await client.chat.postEphemeral({
+        channel: channel?.id || user.id,
+        user: user.id,
+        text: "エラーが発生しました。必要な情報が不足しています。",
+      });
       return;
     }
+
+    // trigger_id はモーダルを開く場合にのみ必要なので、ここでは不要
 
     const codexService = CodexService.getInstance();
     const processKey = codexService.createProcessKey(channel.id, message.ts);
@@ -179,31 +178,38 @@ const handleOpenInputModal: SlackButtonActionHandler = async ({
       : "{}";
     const buttonValue = JSON.parse(buttonValueString);
 
-    logger.info("Open input modal button pressed", { processKey, buttonValue });
+    logger.info("Open input modal button pressed, redirecting to app_mention", {
+      processKey,
+      buttonValue,
+    });
 
     if (codexService.isProcessRunning(processKey)) {
-      // モーダルを開く
-      await client.views.open({
-        trigger_id: trigger_id,
-        view: createInputModal(
-          processKey,
-          buttonValue.promptType || "general",
-          buttonValue.suggestion
-        ),
+      const botUserId = context.botUserId;
+      const botMention = botUserId ? `<@${botUserId}>` : "@bot"; // contextからbotUserIdを取得
+
+      await client.chat.postMessage({
+        channel: channel.id,
+        thread_ts: message.ts, // 元のメッセージのスレッドに投稿
+        text: `次の入力は ${botMention} に続けてメンションで送信してください。\n例: \`${botMention} [あなたの入力]\``,
       });
     } else {
       await client.chat.postEphemeral({
         channel: channel.id,
         user: body.user.id,
-        text: "❌ プロセスが見つからないか、既に停止しています。",
+        text: "❌ プロセスが見つからないか、既に停止しているため入力を受け付けられません。",
       });
     }
   } catch (error) {
     logger.error("Error handling open input modal button:", error as Error);
+    await client.chat.postEphemeral({
+      channel: body.channel?.id || body.user.id,
+      user: body.user.id,
+      text: "処理中にエラーが発生しました。",
+    });
   }
 };
 
-const handleInputModalSubmission: SlackViewSubmissionHandler = async ({
+export const handleInputModalSubmission: SlackViewSubmissionHandler = async ({
   ack,
   body,
   client,
@@ -263,11 +269,4 @@ const handleInputModalSubmission: SlackViewSubmissionHandler = async ({
   } catch (error) {
     logger.error("Error handling input modal submission:", error as Error);
   }
-};
-
-export {
-  outputBuffer,
-  handleSendSuggestion,
-  handleOpenInputModal,
-  handleInputModalSubmission,
 };

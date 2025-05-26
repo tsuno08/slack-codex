@@ -29,6 +29,7 @@ export class CodexService extends EventEmitter {
     const processKey = this.createProcessKey(channel, ts);
     logger.info(`Starting Codex process for ${processKey}`, { message });
 
+    // 既存のプロセスがあれば停止
     this.stopProcess(processKey);
 
     const codexProcess = new CodexProcess(processKey);

@@ -1,9 +1,6 @@
 import { App } from "@slack/bolt";
 import { CodexService } from "../core/codex/manager";
-import {
-  createCompletedBlock,
-  createInputPromptBlock,
-} from "../core/slack/blocks";
+import { createCompletedBlock } from "../core/slack/blocks";
 import { initializeConfig } from "../infrastructure/config/env";
 import { logger } from "../infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
@@ -12,13 +9,13 @@ import {
   handleOpenInputModal,
   handleSendSuggestion,
   handleStopButton,
-  outputBuffer,
+  // outputBuffer は buttonAction.ts からインポートして共有
+  outputBuffer, // この行は変更なし、確認のためコメント追加
 } from "./handlers/buttonAction";
 
 export const createApp = (): App => {
   const config = initializeConfig();
 
-  // Slack Bolt アプリを初期化
   const app = new App({
     token: config.botToken,
     appToken: config.appToken,
@@ -26,25 +23,27 @@ export const createApp = (): App => {
     socketMode: true,
   });
 
-  // Codex サービスを初期化
-  const codexService = CodexService.getInstance();
+  // outputBuffer を app.ts からも利用するためにインポート
+  const importedOutputBuffer = outputBuffer;
 
-  const accumulatedSlackContent = new Map<string, string>();
-
-  const BOX_PATTERN_STRING =
-    "╭──────────────────────────────────────────────────────────────────────────────╮\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯";
-
-  // イベントハンドラーの登録
   app.event("app_mention", handleAppMention);
   app.action("stop_codex", handleStopButton);
   app.action("send_suggestion", handleSendSuggestion);
   app.action("open_input_modal", handleOpenInputModal);
   app.view("codex_input_modal", handleInputModalSubmission);
 
-  // Codexからのデータ出力を処理
+  const BOX_PATTERN_STRING =
+    "╭──────────────────────────────────────────────────────────────────────────────╮\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯";
+  const codexService = CodexService.getInstance();
+
   codexService.on("data", async ({ processKey, data }) => {
     try {
       const [channel, ts] = processKey.split("-");
+
+      // outputBuffer を更新して、最新の出力を保持
+      const currentOutput = importedOutputBuffer.get(processKey) || "";
+      const newOutput = currentOutput + data; // data は処理済みの出力チャンク
+      importedOutputBuffer.set(processKey, newOutput);
 
       const codexRegex =
         /codex\s([\s\S]*)╭──────────────────────────────────────────────────────────────────────────────╮/;
@@ -62,7 +61,7 @@ export const createApp = (): App => {
         await app.client.chat.postMessage({
           channel: channel,
           thread_ts: ts,
-          blocks: createInputPromptBlock(),
+          text: "Codexが入力を待っています...",
         });
       }
     } catch (error) {
@@ -73,14 +72,10 @@ export const createApp = (): App => {
   // Codexプロセスが終了したときの処理
   codexService.on("close", async ({ channel, ts, code }) => {
     try {
-      const processKey = codexService.createProcessKey(channel, ts);
-      const finalOutputForSlack =
-        accumulatedSlackContent.get(processKey)?.trimEnd() || "";
-
       await app.client.chat.update({
         channel: channel,
         ts: ts,
-        blocks: createCompletedBlock(finalOutputForSlack, code),
+        blocks: createCompletedBlock("終了しました", code),
       });
     } catch (error) {
       logger.error("Error handling process close:", error as Error);
@@ -115,7 +110,7 @@ export const createApp = (): App => {
         ],
       });
 
-      outputBuffer.delete(processKey);
+      importedOutputBuffer.delete(processKey);
     } catch (updateError) {
       logger.error("Error updating message with error:", updateError as Error);
     }
