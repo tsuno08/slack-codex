@@ -14,44 +14,30 @@ export class CodexProcess extends EventEmitter {
     super();
   }
 
-  start = async (message: string): Promise<void> => {
-    return new Promise((resolve) => {
-      const args = [
-        "--provider",
-        "gemini",
-        "--model",
-        "gemini-2.0-flash",
-        "--approval-mode",
-        "full-auto",
-        message,
-      ];
+  start = (message: string): void => {
+    const args = [
+      "--provider",
+      "gemini",
+      "--model",
+      "gemini-2.0-flash",
+      "--approval-mode",
+      "full-auto",
+      message,
+    ];
 
-      this.process = pty.spawn("codex", args, {
-        ...CONSTANTS.PTY_CONFIG,
-        env: {
-          ...process.env,
-          ...CONSTANTS.PTY_CONFIG.env,
-        },
-      });
-
-      this.process.onData(this.handleData);
-      this.process.onExit(this.handleExit);
-
-      // プロセスが正常に開始されたことを確認
-      setTimeout(() => {
-        if (this.process) {
-          logger.info(
-            `Codex process successfully started [${this.processKey}]`
-          );
-          resolve();
-        } else {
-          logger.error(`Failed to start Codex process [${this.processKey}]`);
-        }
-      }, CONSTANTS.PROCESS_START_TIMEOUT);
+    this.process = pty.spawn("codex", args, {
+      ...CONSTANTS.PTY_CONFIG,
+      env: {
+        ...process.env,
+        ...CONSTANTS.PTY_CONFIG.env,
+      },
     });
+
+    this.process.onData(this.handleData);
+    this.process.onExit(this.handleExit);
   };
 
-  stop = async (): Promise<void> => {
+  stop = (): void => {
     if (this.process) {
       logger.info(`Stopping Codex process [${this.processKey}]`);
       this.process.kill("SIGTERM");
@@ -59,7 +45,7 @@ export class CodexProcess extends EventEmitter {
     }
   };
 
-  sendInput = async (input: string): Promise<void> => {
+  sendInput = (input: string): void => {
     if (!this.process) {
       throw new Error(
         `Cannot send input: process not running [${this.processKey}]`
@@ -70,9 +56,6 @@ export class CodexProcess extends EventEmitter {
     const inputWithNewline = input.endsWith("\n") ? input : `${input}\n`;
     this.process.write(inputWithNewline);
 
-    // Enterキーを確実に送信するため、追加でリターンキーを送信
-    // これにより対話式プロンプトでの入力が確実に処理される
-    await new Promise((resolve) => setTimeout(resolve, 50)); // 少し待機
     this.process.write("\r"); // キャリッジリターン（Enter確定）
 
     logger.debug(`Sent input to Codex process [${this.processKey}]:`, input);

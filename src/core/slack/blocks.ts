@@ -175,9 +175,11 @@ export const createInputModal = (
   suggestion?: string
 ): ModalView => {
   const titleText =
-    promptType === "explanation" ? "Codex説明入力"
-    : promptType === "box_input" ? "Codex ボックス入力"
-    : "Codex入力";
+    promptType === "explanation"
+      ? "Codex説明入力"
+      : promptType === "box_input"
+      ? "Codex ボックス入力"
+      : "Codex入力";
 
   const placeholderText =
     promptType === "explanation"
