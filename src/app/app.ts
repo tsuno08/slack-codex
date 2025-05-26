@@ -30,7 +30,6 @@ export const createApp = (): App => {
       const codexRegex =
         /codex\s([\s\S]*)╭──────────────────────────────────────────────────────────────────────────────╮/;
       const codexMatch = codexRegex.exec(data);
-      console.log(data, codexMatch);
       if (codexMatch?.[1]) {
         await app.client.chat.postMessage({
           channel: channel,
@@ -51,12 +50,11 @@ export const createApp = (): App => {
     }
   });
 
-  // Codexプロセスが終了したときの処理
   codexService.on("close", async ({ channel, ts, code }) => {
     try {
-      await app.client.chat.update({
+      await app.client.chat.postMessage({
         channel: channel,
-        ts: ts,
+        thread_ts: ts,
         blocks: createCompletedBlock("終了しました", code),
       });
     } catch (error) {
@@ -64,27 +62,17 @@ export const createApp = (): App => {
     }
   });
 
-  // エラー処理
   codexService.on("error", async ({ channel, ts, error }) => {
     try {
-      const errorOutput = `Error: ${error}`;
-
-      await app.client.chat.update({
+      await app.client.chat.postMessage({
         channel: channel,
-        ts: ts,
+        thread_ts: ts,
         blocks: [
           {
             type: "section",
             text: {
               type: "mrkdwn",
-              text: `\`\`\`\n${errorOutput}\n\`\`\``,
-            },
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "❌ エラーが発生しました",
+              text: `"❌ エラーが発生しました。\n\n\`\`\`\nError: ${error}\n\`\`\``,
             },
           },
         ],

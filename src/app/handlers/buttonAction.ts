@@ -21,8 +21,6 @@ export const handleStopButton: SlackButtonActionHandler = async ({
     const codexService = CodexService.getInstance();
     const processKey = codexService.createProcessKey(channel.id, message.ts);
 
-    logger.info("Stop button pressed", { processKey });
-
     if (codexService.stopProcess(processKey)) {
       await client.chat.update({
         channel: channel.id,

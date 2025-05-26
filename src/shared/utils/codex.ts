@@ -9,19 +9,6 @@ export const processCodexOutput = (rawOutput: string): string => {
     .replace(/\r/g, "\n"); // Mac古い改行コードを統一
 };
 
-export const extractCodexCommand = (output: string): string | null => {
-  // 出力からcodexコマンドの実行部分を抽出
-  const lines = output.split("\n");
-
-  for (const line of lines) {
-    if (line.toLowerCase().includes("codex") && line.includes("--")) {
-      return line.trim();
-    }
-  }
-
-  return null;
-};
-
 export const cleanCodexOutput = (output: string): string => {
   // ANSI エスケープシーケンスを除去（ライブラリを使用）
   const cleanedOutput = stripAnsi(output);
