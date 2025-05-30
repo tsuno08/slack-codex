@@ -7,7 +7,7 @@ import {
 import type { ProcessKey } from "../types";
 import { initializeConfig } from "../infrastructure/config/env";
 import { logger } from "../infrastructure/logger/logger";
-import { handleAppMention } from "./handlers/appMention";
+import { createAppMentionHandler } from "./handlers/appMention";
 import { handleStopButton } from "./handlers/buttonAction";
 
 export const createApp = () => {
@@ -96,7 +96,15 @@ export const createApp = () => {
 
   const processHandlers = initializeProcessHandling();
 
-  app.event("app_mention", handleAppMention(processHandlers));
+  // 依存性注入でハンドラを作成
+  const appMentionHandler = createAppMentionHandler({
+    logger,
+    processManager: {
+      startProcess: processHandlers.startProcess
+    }
+  });
+
+  app.event("app_mention", appMentionHandler);
   app.action("stop_codex", handleStopButton);
 
   return app;

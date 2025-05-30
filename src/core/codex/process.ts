@@ -1,10 +1,35 @@
-import * as pty from "node-pty";
 import { CONSTANTS } from "../../infrastructure/config/constants";
 import type { ProcessKey } from "../../types";
 import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
 
+// プロセスインスタンスのインターフェース
+interface ProcessInstance {
+  onData: (callback: (data: string) => void) => void;
+  onExit: (callback: (code: number, signal?: number) => void) => void;
+  kill: (signal: string) => void;
+}
+
+// プロセス制御インターフェース
+export interface ProcessController {
+  spawn(command: string, args: string[], config: object): ProcessInstance;
+}
+
+// node-ptyベースのデフォルト実装
+export const NodePtyController: ProcessController = {
+  spawn(command: string, args: string[], config: object) {
+    const pty = require("node-pty");
+    const ptyProcess = pty.spawn(command, args, config);
+    
+    return {
+      onData: (callback) => ptyProcess.onData(callback),
+      onExit: (callback) => ptyProcess.onExit((e: { exitCode: number; signal?: number }) => callback(e.exitCode, e.signal)),
+      kill: (signal) => ptyProcess.kill(signal),
+    };
+  },
+};
+
 export type ProcessState = {
-  ptyProcess: pty.IPty | null;
+  process: ProcessInstance | null;
   id: string;
   threadTs: string;
 };
@@ -19,7 +44,7 @@ export const createProcess = (
   processKey: ProcessKey,
   threadTs: string
 ): ProcessState => ({
-  ptyProcess: null,
+  process: null,
   id: processKey,
   threadTs,
 });
@@ -27,7 +52,8 @@ export const createProcess = (
 export const startProcess = (
   state: ProcessState,
   message: string,
-  handlers: ProcessHandlers
+  handlers: ProcessHandlers,
+  controller: ProcessController = NodePtyController // 依存性注入
 ): ProcessState => {
   const args = [
     "--provider",
@@ -39,29 +65,29 @@ export const startProcess = (
     message,
   ];
 
-  const ptyProcess = pty.spawn("codex", args, {
+  const processInstance = controller.spawn("codex", args, {
     ...CONSTANTS.PTY_CONFIG,
     env: {
-      ...process.env,
+      ...global.process.env, // グローバルプロセスを使用
       ...CONSTANTS.PTY_CONFIG.env,
     },
   });
 
-  ptyProcess.onData((data) => {
+  processInstance.onData((data: string) => {
     const processedOutput = processCodexOutput(data);
     const cleanedOutput = cleanCodexOutput(processedOutput);
     handlers.onLog(`Codex processed output [${state.id}]: ${cleanedOutput}`);
     handlers.onData(cleanedOutput);
   });
 
-  ptyProcess.onExit(({ exitCode, signal }) => {
+  processInstance.onExit((exitCode: number, signal?: number) => {
     handlers.onLog(`Codex process exited [${state.id}] with code: ${exitCode}`);
     handlers.onExit(exitCode, signal);
   });
 
   return {
     ...state,
-    ptyProcess,
+    process: processInstance,
   };
 };
 
@@ -69,12 +95,12 @@ export const stopProcess = (
   state: ProcessState,
   handlers: ProcessHandlers
 ): ProcessState => {
-  if (state.ptyProcess) {
+  if (state.process) {
     handlers.onLog(`Stopping Codex process [${state.id}]`);
-    state.ptyProcess.kill("SIGTERM");
+    state.process.kill("SIGTERM");
   }
   return {
     ...state,
-    ptyProcess: null,
+    process: null,
   };
 };

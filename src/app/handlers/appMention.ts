@@ -1,11 +1,16 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { extractMentionText } from "../../core/slack/utils";
-import { logger } from "../../infrastructure/logger/logger";
-import type { ProcessHandlers } from "../../types";
+import type { Logger, ProcessManager } from "../../types";
 
-export const handleAppMention =
-  (processHandlers: ProcessHandlers) =>
-  async ({
+// 依存性注入用のハンドラ生成関数
+export const createAppMentionHandler = ({
+  logger,
+  processManager,
+}: {
+  logger: Logger;
+  processManager: ProcessManager;
+}) => {
+  return async ({
     event,
     client,
   }: SlackEventMiddlewareArgs<"app_mention"> & AllMiddlewareArgs) => {
@@ -43,13 +48,8 @@ export const handleAppMention =
       }
 
       try {
-        // app.tsから提供されたプロセスハンドラを使用
-        processHandlers.startProcess(
-          task,
-          channel,
-          loadingMessage.ts,
-          threadId
-        );
+        // プロセス管理オブジェクトを使用してプロセス開始
+        processManager.startProcess(task, channel, loadingMessage.ts, threadId);
       } catch (error) {
         logger.error("Failed to start Codex process", error as Error);
         await client.chat.postMessage({
@@ -68,3 +68,4 @@ export const handleAppMention =
       });
     }
   };
+};

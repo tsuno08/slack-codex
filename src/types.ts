@@ -7,12 +7,18 @@ export type CodexClose = {
   code: number | null;
 };
 
-export type ProcessHandlers = {
+// プロセス管理オブジェクトの型
+export type ProcessManager = {
   startProcess: (
     message: string,
     channel: string,
     ts: string,
     threadTs: string
   ) => void;
-  stopProcess: (key: ProcessKey) => void;
+};
+
+export type Logger = {
+  info: (message: string, meta?: Record<string, unknown>) => void;
+  warn: (message: string, meta?: Record<string, unknown>) => void;
+  error: (message: string, meta?: Record<string, unknown> | Error) => void;
 };
