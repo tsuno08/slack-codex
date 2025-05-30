@@ -1,9 +1,6 @@
 import { EventEmitter } from "events";
 import { logger } from "../../infrastructure/logger/logger";
-import type {
-  CodexClose,
-  ProcessKey,
-} from "../../shared/types/codex";
+import type { CodexClose, ProcessKey } from "../../shared/types/codex";
 import { CodexProcess } from "./process";
 
 export class CodexService extends EventEmitter {
@@ -21,18 +18,32 @@ export class CodexService extends EventEmitter {
     return CodexService.instance;
   };
 
+  findProcessByThreadTs = (threadTs: string): CodexProcess | undefined => {
+    for (const process of this.processes.values()) {
+      if (process.threadTs === threadTs) {
+        return process;
+      }
+    }
+    return undefined;
+  };
+
   startProcess = (
     message: string,
     channel: string,
-    ts: string
-  ): ProcessKey => {
+    ts: string,
+    threadTs: string = ts
+  ): CodexProcess => {
+    // 既存プロセスをスレッドIDで検索
+    const existingProcess = this.findProcessByThreadTs(threadTs);
+    if (existingProcess) {
+      logger.info(`Reusing existing Codex process for thread ${threadTs}`);
+      return existingProcess;
+    }
+
     const processKey = this.createProcessKey(channel, ts);
-    logger.info(`Starting Codex process for ${processKey}`, { message });
+    logger.info(`Starting new Codex process for ${processKey}`, { message });
 
-    // 既存のプロセスがあれば停止
-    this.stopProcess(processKey);
-
-    const codexProcess = new CodexProcess(processKey);
+    const codexProcess = new CodexProcess(processKey, threadTs);
     this.processes.set(processKey, codexProcess);
 
     // プロセスイベントの監視
@@ -51,7 +62,7 @@ export class CodexService extends EventEmitter {
 
     codexProcess.start(message);
 
-    return processKey;
+    return codexProcess;
   };
 
   stopProcess = (processKey: ProcessKey): boolean => {

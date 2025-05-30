@@ -8,8 +8,8 @@ export const handleAppMention = async ({
   client,
 }: SlackEventMiddlewareArgs<"app_mention"> & AllMiddlewareArgs) => {
   try {
-    const { channel, text, ts, user } = event;
-    logger.info("Received app mention", { channel, user, ts });
+    const { channel, text, ts, thread_ts, user } = event;
+    logger.info("Received app mention", { channel, user, ts, thread_ts });
 
     // ボットのメンション部分を除去してタスクを取得
     const task = extractMentionText(text);
@@ -24,29 +24,46 @@ export const handleAppMention = async ({
       return;
     }
 
-    logger.info("Processing new task", { task, channel, user });
+    logger.info("Processing task", { task, channel, user, thread_ts });
+
+    // スレッドIDを決定 (イベントがスレッド内の場合は thread_ts を使用、そうでない場合は ts を使用)
+    const threadId = thread_ts || ts;
 
     // 初期のローディングメッセージを送信
-    const response = await client.chat.postMessage({
+    const loadingMessage = await client.chat.postMessage({
       channel: channel,
-      thread_ts: ts,
+      thread_ts: threadId,
       text: "処理中...",
     });
 
-    if (!response.ts) {
+    if (!loadingMessage.ts) {
       throw new Error("Failed to post initial message");
     }
 
     try {
-      // Codexプロセスを開始
+      // Codexプロセスを開始（既存プロセスがあれば再利用）
       const codexService = CodexService.getInstance();
-      codexService.startProcess(task, channel, response.ts);
+      const codexProcess = codexService.startProcess(
+        task,
+        channel,
+        loadingMessage.ts,
+        threadId
+      );
+
+      // 既存プロセスの場合、再開メッセージを送信
+      if (codexProcess.id !== `${channel}-${loadingMessage.ts}`) {
+        await client.chat.postMessage({
+          channel: channel,
+          thread_ts: threadId,
+          text: `:arrows_counterclockwise: 既存のプロセスを再開します（プロセスID: ${codexProcess.id}）`,
+        });
+      }
     } catch (error) {
       logger.error("Failed to start Codex process", error as Error);
       await client.chat.postMessage({
         channel: channel,
         text: "❌ Codexプロセスの起動に失敗しました。",
-        thread_ts: response.ts,
+        thread_ts: loadingMessage.ts,
       });
       return;
     }

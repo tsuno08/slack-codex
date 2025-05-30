@@ -23,6 +23,7 @@ export const createApp = (): App => {
   const codexService = CodexService.getInstance();
 
   codexService.on("data", async ({ processKey, data }) => {
+    console.log(`data: ${data}`);
     try {
       const [channel, ts] = processKey.split("-");
 
