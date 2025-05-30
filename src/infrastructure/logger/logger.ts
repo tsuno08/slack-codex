@@ -15,58 +15,79 @@ type LogArgument =
   | undefined
   | Error;
 
-export class Logger {
-  private level: LogLevel;
+// 純粋関数: ログメッセージ生成
+const createLogMessage = (
+  level: LogLevel,
+  message: string,
+  ...args: LogArgument[]
+): string => {
+  const timestamp = new Date().toISOString();
+  const levelName = LogLevel[level];
+  return `[${timestamp}] ${levelName}: ${message} ${args
+    .map((arg) => (typeof arg === "object" ? JSON.stringify(arg) : String(arg)))
+    .join(" ")}`;
+};
 
-  constructor(level: LogLevel = LogLevel.INFO) {
-    this.level = level;
+// 副作用: ログ出力
+const outputLog = (level: LogLevel, formatted: string): void => {
+  switch (level) {
+    case LogLevel.DEBUG:
+      console.debug(formatted);
+      break;
+    case LogLevel.INFO:
+      console.info(formatted);
+      break;
+    case LogLevel.WARN:
+      console.warn(formatted);
+      break;
+    case LogLevel.ERROR:
+      console.error(formatted);
+      break;
   }
+};
 
-  private log = (
-    level: LogLevel,
-    message: string,
-    ...args: LogArgument[]
-  ): void => {
-    if (level < this.level) return;
-
-    const timestamp = new Date().toISOString();
-    const levelName = LogLevel[level];
-    const prefix = `[${timestamp}] ${levelName}:`;
-
-    switch (level) {
-      case LogLevel.DEBUG:
-        console.debug(prefix, message, ...args);
-        break;
-      case LogLevel.INFO:
-        console.info(prefix, message, ...args);
-        break;
-      case LogLevel.WARN:
-        console.warn(prefix, message, ...args);
-        break;
-      case LogLevel.ERROR:
-        console.error(prefix, message, ...args);
-        break;
-    }
+// ログ処理コア (カリー化関数)
+export const createLogger =
+  (currentLevel: LogLevel) =>
+  (level: LogLevel, message: string, ...args: LogArgument[]): void => {
+    if (level < currentLevel) return;
+    const formatted = createLogMessage(level, message, ...args);
+    outputLog(level, formatted);
   };
 
-  debug = (message: string, ...args: LogArgument[]): void => {
-    this.log(LogLevel.DEBUG, message, ...args);
-  };
+// 各レベルのロガー関数 (ログレベル固定)
+export const debug =
+  (currentLevel: LogLevel) =>
+  (message: string, ...args: LogArgument[]) =>
+    createLogger(currentLevel)(LogLevel.DEBUG, message, ...args);
 
-  info = (message: string, ...args: LogArgument[]): void => {
-    this.log(LogLevel.INFO, message, ...args);
-  };
+export const info =
+  (currentLevel: LogLevel) =>
+  (message: string, ...args: LogArgument[]) =>
+    createLogger(currentLevel)(LogLevel.INFO, message, ...args);
 
-  warn = (message: string, ...args: LogArgument[]): void => {
-    this.log(LogLevel.WARN, message, ...args);
-  };
+export const warn =
+  (currentLevel: LogLevel) =>
+  (message: string, ...args: LogArgument[]) =>
+    createLogger(currentLevel)(LogLevel.WARN, message, ...args);
 
-  error = (message: string, ...args: LogArgument[]): void => {
-    this.log(LogLevel.ERROR, message, ...args);
-  };
-}
+export const error =
+  (currentLevel: LogLevel) =>
+  (message: string, ...args: LogArgument[]) =>
+    createLogger(currentLevel)(LogLevel.ERROR, message, ...args);
 
-// デフォルトロガーインスタンス
-export const logger = new Logger(
-  process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.INFO
-);
+// デフォルトロガー生成関数
+export const createDefaultLogger = () => {
+  const level =
+    process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.INFO;
+
+  return {
+    debug: debug(level),
+    info: info(level),
+    warn: warn(level),
+    error: error(level),
+  };
+};
+
+// 既存コードとの互換性のためデフォルトロガーをエクスポート
+export const logger = createDefaultLogger();

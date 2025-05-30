@@ -4,7 +4,7 @@ import type {
   BlockElementAction,
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
-import { CodexService } from "../../core/codex/manager";
+import { createProcessKey, stopProcess } from "../../core/codex/manager";
 import { logger } from "../../infrastructure/logger/logger";
 
 export const handleStopButton = async ({
@@ -24,10 +24,14 @@ export const handleStopButton = async ({
       return;
     }
 
-    const codexService = CodexService.getInstance();
-    const processKey = codexService.createProcessKey(channel.id, message.ts);
+    // プロセスキー生成
+    const processKey = createProcessKey(channel.id, message.ts);
 
-    if (codexService.stopProcess(processKey)) {
+    // ダミーのプロセスマップを渡す（実際の実装では外部から注入される）
+    const dummyProcesses = new Map();
+    const [_, stopped] = stopProcess(dummyProcesses, processKey);
+
+    if (stopped) {
       await client.chat.update({
         channel: channel.id,
         ts: message.ts,

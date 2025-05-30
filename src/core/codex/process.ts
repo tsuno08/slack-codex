@@ -1,64 +1,80 @@
-import { EventEmitter } from "events";
 import * as pty from "node-pty";
 import { CONSTANTS } from "../../infrastructure/config/constants";
-import { logger } from "../../infrastructure/logger/logger";
-import type { ProcessKey, CodexProcess as CodexProcessInterface } from "../../shared/types/codex";
+import type { ProcessKey } from "../../types";
 import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
 
-export class CodexProcess extends EventEmitter implements CodexProcessInterface {
-  private process: pty.IPty | null = null;
-  public id: string;
-  public threadTs: string;
+export type ProcessState = {
+  ptyProcess: pty.IPty | null;
+  id: string;
+  threadTs: string;
+};
 
-  constructor(processKey: ProcessKey, threadTs: string) {
-    super();
-    this.id = processKey;
-    this.threadTs = threadTs;
+export type ProcessHandlers = {
+  onData: (data: string) => void;
+  onExit: (exitCode: number, signal?: number) => void;
+  onLog: (message: string) => void;
+};
+
+export const createProcess = (
+  processKey: ProcessKey,
+  threadTs: string
+): ProcessState => ({
+  ptyProcess: null,
+  id: processKey,
+  threadTs,
+});
+
+export const startProcess = (
+  state: ProcessState,
+  message: string,
+  handlers: ProcessHandlers
+): ProcessState => {
+  const args = [
+    "--provider",
+    "gemini",
+    "--model",
+    "gemini-2.0-flash",
+    "--approval-mode",
+    "full-auto",
+    message,
+  ];
+
+  const ptyProcess = pty.spawn("codex", args, {
+    ...CONSTANTS.PTY_CONFIG,
+    env: {
+      ...process.env,
+      ...CONSTANTS.PTY_CONFIG.env,
+    },
+  });
+
+  ptyProcess.onData((data) => {
+    const processedOutput = processCodexOutput(data);
+    const cleanedOutput = cleanCodexOutput(processedOutput);
+    handlers.onLog(`Codex processed output [${state.id}]: ${cleanedOutput}`);
+    handlers.onData(cleanedOutput);
+  });
+
+  ptyProcess.onExit(({ exitCode, signal }) => {
+    handlers.onLog(`Codex process exited [${state.id}] with code: ${exitCode}`);
+    handlers.onExit(exitCode, signal);
+  });
+
+  return {
+    ...state,
+    ptyProcess,
+  };
+};
+
+export const stopProcess = (
+  state: ProcessState,
+  handlers: ProcessHandlers
+): ProcessState => {
+  if (state.ptyProcess) {
+    handlers.onLog(`Stopping Codex process [${state.id}]`);
+    state.ptyProcess.kill("SIGTERM");
   }
-
-  start = (message: string): void => {
-    const args = [
-      "--provider",
-      "gemini",
-      "--model",
-      "gemini-2.0-flash",
-      "--approval-mode",
-      "full-auto",
-      message,
-    ];
-
-    this.process = pty.spawn("codex", args, {
-      ...CONSTANTS.PTY_CONFIG,
-      env: {
-        ...process.env,
-        ...CONSTANTS.PTY_CONFIG.env,
-      },
-    });
-
-    this.process.onData((data) => {
-      const processedOutput = processCodexOutput(data);
-      const cleanedOutput = cleanCodexOutput(processedOutput);
-      logger.debug(
-        `Codex processed output [${this.id}]:`,
-        cleanedOutput
-      );
-      this.emit("data", cleanedOutput);
-    });
-    this.process.onExit(({ exitCode, signal }) => {
-      logger.info(
-        `Codex process exited [${this.id}] with code:`,
-        exitCode
-      );
-      this.process = null;
-      this.emit("exit", { exitCode, signal });
-    });
+  return {
+    ...state,
+    ptyProcess: null,
   };
-
-  stop = (): void => {
-    if (this.process) {
-      logger.info(`Stopping Codex process [${this.id}]`);
-      this.process.kill("SIGTERM");
-      this.process = null;
-    }
-  };
-}
+};

@@ -1,82 +1,96 @@
-import { EventEmitter } from "events";
-import { logger } from "../../infrastructure/logger/logger";
-import type { CodexClose, ProcessKey } from "../../shared/types/codex";
-import { CodexProcess } from "./process";
+import type { CodexClose, ProcessKey } from "../../types";
+import {
+  createProcess as createCodexProcess,
+  startProcess as startCodexProcess,
+  stopProcess as stopCodexProcess,
+  type ProcessState,
+  type ProcessHandlers,
+} from "./process";
 
-export class CodexService extends EventEmitter {
-  private static instance: CodexService;
-  private processes = new Map<ProcessKey, CodexProcess>();
+// イベントハンドラ型定義
+export type EventHandlers = {
+  onData: (data: { processKey: ProcessKey; data: string }) => void;
+  onClose: (close: CodexClose) => void;
+};
 
-  private constructor() {
-    super();
+// スレッドTSでプロセス検索
+export const findProcessByThreadTs = (
+  processes: Map<ProcessKey, ProcessState>,
+  threadTs: string
+): ProcessState | undefined => {
+  for (const process of processes.values()) {
+    if (process.threadTs === threadTs) {
+      return process;
+    }
+  }
+  return undefined;
+};
+
+// プロセスキー生成
+export const createProcessKey = (channel: string, ts: string): ProcessKey => {
+  return `${channel}-${ts}` as ProcessKey;
+};
+
+// プロセス開始
+export const startProcess = (
+  processes: Map<ProcessKey, ProcessState>,
+  message: string,
+  channel: string,
+  ts: string,
+  threadTs: string,
+  handlers: EventHandlers
+): [Map<ProcessKey, ProcessState>, ProcessState] => {
+  const existingProcess = findProcessByThreadTs(processes, threadTs);
+  if (existingProcess) {
+    return [processes, existingProcess];
   }
 
-  static getInstance = (): CodexService => {
-    if (!CodexService.instance) {
-      CodexService.instance = new CodexService();
-    }
-    return CodexService.instance;
+  const processKey = createProcessKey(channel, ts);
+  const processState = createCodexProcess(processKey, threadTs);
+
+  const newProcesses = new Map(processes);
+  newProcesses.set(processKey, processState);
+
+  // プロセスハンドラ設定
+  const codexHandlers: ProcessHandlers = {
+    onData: (data: string) => {
+      handlers.onData({ processKey, data });
+    },
+    onExit: (exitCode: number) => {
+      handlers.onClose({ channel, ts, code: exitCode });
+      newProcesses.delete(processKey);
+    },
+    onLog: () => {}, // ログは現状無視
   };
 
-  findProcessByThreadTs = (threadTs: string): CodexProcess | undefined => {
-    for (const process of this.processes.values()) {
-      if (process.threadTs === threadTs) {
-        return process;
-      }
-    }
-    return undefined;
-  };
+  const updatedState = startCodexProcess(processState, message, codexHandlers);
+  newProcesses.set(processKey, updatedState);
 
-  startProcess = (
-    message: string,
-    channel: string,
-    ts: string,
-    threadTs: string = ts
-  ): CodexProcess => {
-    // 既存プロセスをスレッドIDで検索
-    const existingProcess = this.findProcessByThreadTs(threadTs);
-    if (existingProcess) {
-      logger.info(`Reusing existing Codex process for thread ${threadTs}`);
-      return existingProcess;
-    }
+  return [newProcesses, updatedState];
+};
 
-    const processKey = this.createProcessKey(channel, ts);
-    logger.info(`Starting new Codex process for ${processKey}`, { message });
+// プロセス停止
+export const stopProcess = (
+  processes: Map<ProcessKey, ProcessState>,
+  processKey: ProcessKey
+): [Map<ProcessKey, ProcessState>, boolean] => {
+  const processState = processes.get(processKey);
+  if (!processState) {
+    return [processes, false];
+  }
 
-    const codexProcess = new CodexProcess(processKey, threadTs);
-    this.processes.set(processKey, codexProcess);
+  const updatedState = stopCodexProcess(processState, {
+    onData: () => {},
+    onExit: () => {},
+    onLog: () => {},
+  });
 
-    // プロセスイベントの監視
-    codexProcess.on("data", (data: string) => {
-      this.emit("data", { processKey, data });
-    });
+  const newProcesses = new Map(processes);
+  if (updatedState.ptyProcess === null) {
+    newProcesses.delete(processKey);
+  } else {
+    newProcesses.set(processKey, updatedState);
+  }
 
-    codexProcess.on(
-      "exit",
-      (exitCode: { exitCode: number; signal?: number }) => {
-        const close: CodexClose = { channel, ts, code: exitCode.exitCode };
-        this.processes.delete(processKey);
-        this.emit("close", close);
-      }
-    );
-
-    codexProcess.start(message);
-
-    return codexProcess;
-  };
-
-  stopProcess = (processKey: ProcessKey): boolean => {
-    const codexProcess = this.processes.get(processKey);
-    if (codexProcess) {
-      codexProcess.stop();
-      this.processes.delete(processKey);
-      return true;
-    }
-    logger.warn(`Process not found or already stopped [${processKey}]`);
-    return false;
-  };
-
-  createProcessKey = (channel: string, ts: string): ProcessKey => {
-    return `${channel}-${ts}` as ProcessKey;
-  };
-}
+  return [newProcesses, true];
+};
