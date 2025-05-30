@@ -1,6 +1,6 @@
 import { CONSTANTS } from "../../infrastructure/config/constants";
 import type { ProcessKey } from "../../types";
-import { cleanCodexOutput, processCodexOutput } from "../../shared/utils/codex";
+import { cleanCodexOutput, processCodexOutput } from "../../utils";
 
 // プロセスインスタンスのインターフェース
 interface ProcessInstance {

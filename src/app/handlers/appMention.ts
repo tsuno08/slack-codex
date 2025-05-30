@@ -1,5 +1,5 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
-import { extractMentionText } from "../../core/slack/utils";
+import { extractMentionText } from "../../utils";
 import type { Logger, ProcessManager } from "../../types";
 
 // 依存性注入用のハンドラ生成関数
