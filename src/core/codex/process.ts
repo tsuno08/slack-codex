@@ -31,8 +31,23 @@ export class CodexProcess extends EventEmitter {
       },
     });
 
-    this.process.onData(this.handleData);
-    this.process.onExit(this.handleExit);
+    this.process.onData((data) => {
+      const processedOutput = processCodexOutput(data);
+      const cleanedOutput = cleanCodexOutput(processedOutput);
+      logger.debug(
+        `Codex processed output [${this.processKey}]:`,
+        cleanedOutput
+      );
+      this.emit("data", cleanedOutput);
+    });
+    this.process.onExit(({ exitCode, signal }) => {
+      logger.info(
+        `Codex process exited [${this.processKey}] with code:`,
+        exitCode
+      );
+      this.process = null;
+      this.emit("exit", { exitCode, signal });
+    });
   };
 
   stop = (): void => {
@@ -41,24 +56,5 @@ export class CodexProcess extends EventEmitter {
       this.process.kill("SIGTERM");
       this.process = null;
     }
-  };
-
-  private handleData = (data: string): void => {
-    const processedOutput = processCodexOutput(data);
-    const cleanedOutput = cleanCodexOutput(processedOutput);
-    logger.debug(`Codex processed output [${this.processKey}]:`, cleanedOutput);
-    this.emit("data", cleanedOutput);
-  };
-
-  private handleExit = (exitCode: {
-    exitCode: number;
-    signal?: number;
-  }): void => {
-    logger.info(
-      `Codex process exited [${this.processKey}] with code:`,
-      exitCode.exitCode
-    );
-    this.process = null;
-    this.emit("exit", exitCode);
   };
 }
