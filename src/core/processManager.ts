@@ -31,6 +31,7 @@ export class ProcessManager {
     let ptyProcess: IPty | null = null;
     try {
       ptyProcess = spawn("codex", args, {
+        cwd: process.cwd(),
         env: {
           ...global.process.env,
         },
