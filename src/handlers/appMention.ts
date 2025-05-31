@@ -29,6 +29,7 @@ export const handleAppMention = async ({
   const threadId = thread_ts || ts;
 
   const loadingMessage = await client.chat.postMessage({
+    text: "Codexが処理を開始しました",
     channel: channel,
     thread_ts: threadId,
     blocks: [
