@@ -60,7 +60,6 @@ export const startProcess = (
       handlers.onClose({ channel, ts, code: exitCode });
       newProcesses.delete(processKey);
     },
-    onLog: () => {}, // ログは現状無視
   };
 
   const updatedState = startCodexProcess(processState, message, codexHandlers);
@@ -79,11 +78,7 @@ export const stopProcess = (
     return [processes, false];
   }
 
-  const updatedState = stopCodexProcess(processState, {
-    onData: () => {},
-    onExit: () => {},
-    onLog: () => {},
-  });
+  const updatedState = stopCodexProcess(processState);
 
   const newProcesses = new Map(processes);
   if (updatedState.process === null) {

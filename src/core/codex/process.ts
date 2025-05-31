@@ -2,7 +2,6 @@ import { CONSTANTS } from "../../infrastructure/config/constants";
 import type { ProcessKey } from "../../types";
 import { cleanCodexOutput, processCodexOutput } from "../../utils";
 
-// プロセスインスタンスのインターフェース
 interface ProcessInstance {
   onData: (callback: (data: string) => void) => void;
   onExit: (callback: (code: number, signal?: number) => void) => void;
@@ -19,10 +18,13 @@ export const NodePtyController: ProcessController = {
   spawn(command: string, args: string[], config: object) {
     const pty = require("node-pty");
     const ptyProcess = pty.spawn(command, args, config);
-    
+
     return {
       onData: (callback) => ptyProcess.onData(callback),
-      onExit: (callback) => ptyProcess.onExit((e: { exitCode: number; signal?: number }) => callback(e.exitCode, e.signal)),
+      onExit: (callback) =>
+        ptyProcess.onExit((e: { exitCode: number; signal?: number }) =>
+          callback(e.exitCode, e.signal)
+        ),
       kill: (signal) => ptyProcess.kill(signal),
     };
   },
@@ -37,7 +39,6 @@ export type ProcessState = {
 export type ProcessHandlers = {
   onData: (data: string) => void;
   onExit: (exitCode: number, signal?: number) => void;
-  onLog: (message: string) => void;
 };
 
 export const createProcess = (
@@ -76,12 +77,10 @@ export const startProcess = (
   processInstance.onData((data: string) => {
     const processedOutput = processCodexOutput(data);
     const cleanedOutput = cleanCodexOutput(processedOutput);
-    handlers.onLog(`Codex processed output [${state.id}]: ${cleanedOutput}`);
     handlers.onData(cleanedOutput);
   });
 
   processInstance.onExit((exitCode: number, signal?: number) => {
-    handlers.onLog(`Codex process exited [${state.id}] with code: ${exitCode}`);
     handlers.onExit(exitCode, signal);
   });
 
@@ -93,10 +92,8 @@ export const startProcess = (
 
 export const stopProcess = (
   state: ProcessState,
-  handlers: ProcessHandlers
 ): ProcessState => {
   if (state.process) {
-    handlers.onLog(`Stopping Codex process [${state.id}]`);
     state.process.kill("SIGTERM");
   }
   return {

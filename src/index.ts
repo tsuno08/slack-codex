@@ -1,10 +1,32 @@
-import { createApp } from "./app/app";
+import { App } from "@slack/bolt";
+import { initializeConfig } from "./infrastructure/config/env";
 import { logger } from "./infrastructure/logger/logger";
+import { handleAppMention } from "./handlers/appMention";
+import { handleStopButton } from "./handlers/buttonAction";
+import type { ProcessKey } from "./types";
+import type { ProcessState } from "./core/codex/process";
 
 // アプリケーションを開始
 const startApp = async (): Promise<void> => {
   try {
-    const app = createApp();
+    const config = initializeConfig();
+
+    const app = new App({
+      token: config.botToken,
+      appToken: config.appToken,
+      signingSecret: config.signingSecret,
+      socketMode: true,
+    });
+
+    const processes = new Map<ProcessKey, ProcessState>();
+
+    app.event("app_mention", (args) =>
+      handleAppMention({ ...args, processes })
+    );
+    app.action("stop_codex", (args) =>
+      handleStopButton({ ...args, processes })
+    );
+
     await app.start();
     logger.info("⚡️ Slack Codex Bot is running!");
   } catch (error) {

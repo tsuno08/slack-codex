@@ -1,19 +1,28 @@
 import type {
   AllMiddlewareArgs,
-  BlockAction,
-  BlockElementAction,
+  SlackAction,
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
-import { createProcessKey, stopProcess } from "../../core/codex/manager";
-import { logger } from "../../infrastructure/logger/logger";
+import { createProcessKey, stopProcess } from "../core/codex/manager";
+import { logger } from "../infrastructure/logger/logger";
+import type { ProcessKey } from "../types";
+import type { ProcessState } from "../core/codex/process";
 
 export const handleStopButton = async ({
   ack,
   body,
   client,
-}: SlackActionMiddlewareArgs<BlockAction<BlockElementAction>> &
-  AllMiddlewareArgs) => {
+  processes,
+}: SlackActionMiddlewareArgs<SlackAction> &
+  AllMiddlewareArgs & {
+    processes: Map<ProcessKey, ProcessState>;
+  }) => {
   await ack();
+
+  if (!("message" in body)) {
+    logger.error("Invalid action body: missing message data");
+    return;
+  }
 
   try {
     const channel = body.channel;
@@ -27,9 +36,7 @@ export const handleStopButton = async ({
     // プロセスキー生成
     const processKey = createProcessKey(channel.id, message.ts);
 
-    // ダミーのプロセスマップを渡す（実際の実装では外部から注入される）
-    const dummyProcesses = new Map();
-    const [_, stopped] = stopProcess(dummyProcesses, processKey);
+    const [_, stopped] = stopProcess(processes, processKey);
 
     if (stopped) {
       await client.chat.update({
