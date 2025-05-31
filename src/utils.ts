@@ -1,4 +1,7 @@
+import type { WebClient } from "@slack/web-api";
 import stripAnsi from "strip-ansi";
+import type { ProcessManager } from "./core/processManager";
+import { logger } from "./infrastructure/logger/logger";
 
 export const cleanCodexOutput = (output: string): string => {
   // ANSI エスケープシーケンスを除去（ライブラリを使用）
@@ -31,4 +34,25 @@ export const extractCodexOutput = (data: string) => {
     /codex\s([\s\S]*)╭──────────────────────────────────────────────────────────────────────────────╮/;
   const match = pattern.exec(data);
   return match?.[1].trim();
+};
+
+export const deleteLoadingMessage = async (
+  client: WebClient,
+  channel: string,
+  processManager: ProcessManager,
+  ts?: string
+): Promise<void> => {
+  if (!ts) return;
+  const existingProcess = processManager.findProcessByThreadTs(ts);
+  if (!existingProcess || !existingProcess.loadingMessageTs) return;
+  try {
+    await client.chat.delete({
+      channel: channel,
+      ts: existingProcess.loadingMessageTs,
+    });
+    logger.info("Deleted loading message", { channel, ts: existingProcess.loadingMessageTs });
+    processManager.setLoadingMessageTs(ts, "");
+  } catch (error) {
+    logger.error("Failed to delete loading message", error as Error);
+  }
 };

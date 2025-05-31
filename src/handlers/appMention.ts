@@ -1,5 +1,9 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
-import { extractMentionText, extractCodexOutput } from "../utils";
+import {
+  extractMentionText,
+  extractCodexOutput,
+  deleteLoadingMessage,
+} from "../utils";
 import { logger } from "../infrastructure/logger/logger";
 import type { EventHandlers } from "../types";
 import { CONSTANTS } from "../infrastructure/config/constants";
@@ -14,7 +18,6 @@ export const handleAppMention = async ({
     processManager: ProcessManager;
   }) => {
   const { channel, text, ts, thread_ts, user } = event;
-  logger.info("Received app mention", { channel, user, ts, thread_ts });
   const prompt = extractMentionText(text);
 
   if (!prompt) {
@@ -27,12 +30,11 @@ export const handleAppMention = async ({
     return;
   }
 
-  logger.info("Processing prompt", { prompt, channel, user, thread_ts });
-
   // スレッドIDを決定 (イベントがスレッド内の場合は thread_ts を使用、そうでない場合は ts を使用)
   const threadId = thread_ts || ts;
 
-  // 初期のローディングメッセージを送信
+  await deleteLoadingMessage(client, channel, processManager, threadId);
+
   const loadingMessage = await client.chat.postMessage({
     channel: channel,
     thread_ts: threadId,
@@ -57,7 +59,7 @@ export const handleAppMention = async ({
     await client.chat.postMessage({
       channel: channel,
       text: "❌ ローディングメッセージの送信に失敗しました。",
-      thread_ts: ts,
+      thread_ts: threadId,
     });
     return;
   }
@@ -68,17 +70,9 @@ export const handleAppMention = async ({
         const [channel, ts] = processKey.split("-");
 
         const codexOutput = extractCodexOutput(data);
-        logger.info("Codex output received", { codexOutput, channel, ts });
 
         if (codexOutput) {
-          const existingProcess = processManager.findProcessByThreadTs(ts);
-          if (existingProcess?.loadingMessageTs) {
-            await client.chat.delete({
-              channel: channel,
-              ts: existingProcess.loadingMessageTs,
-            });
-            processManager.setLoadingMessageTs(threadId, "");
-          }
+          await deleteLoadingMessage(client, channel, processManager, ts);
           await client.chat.postMessage({
             channel: channel,
             thread_ts: ts,
@@ -87,9 +81,11 @@ export const handleAppMention = async ({
         }
 
         if (data.includes(CONSTANTS.BOX_PATTERN)) {
-          await client.chat.postMessage({
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const waitingMessage = await client.chat.postMessage({
             channel: channel,
             thread_ts: ts,
+            text: "Codexが入力を待っています...",
             blocks: [
               {
                 type: "section",
@@ -114,6 +110,13 @@ export const handleAppMention = async ({
               },
             ],
           });
+          if (waitingMessage.ts) {
+            processManager.setLoadingMessageTs(threadId, waitingMessage.ts);
+            logger.info("set waiting message", {
+              channel,
+              ts: waitingMessage.ts,
+            });
+          }
         }
       } catch (error) {
         logger.error("Error updating message with data:", error as Error);
@@ -134,9 +137,13 @@ export const handleAppMention = async ({
 
   try {
     processManager.setLoadingMessageTs(threadId, loadingMessageTs);
+    logger.info("set loading message", {
+      channel,
+      ts: loadingMessageTs,
+    });
     const existingProcess = processManager.findProcessByThreadTs(threadId);
     if (existingProcess) {
-      processManager.writeToProcess(threadId, prompt);
+      await processManager.writeToProcess(threadId, prompt);
     } else {
       processManager.startProcess(
         prompt,

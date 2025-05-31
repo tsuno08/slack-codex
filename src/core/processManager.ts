@@ -66,12 +66,14 @@ export class ProcessManager {
     return newProcessState;
   }
 
-  writeToProcess(threadTs: string, message: string): boolean {
+  async writeToProcess(threadTs: string, message: string) {
     const processState = this.findProcessByThreadTs(threadTs);
     if (!processState) return false;
 
     // メッセージの末尾に改行を追加してEnterキーを押したのと同じ効果にする
-    processState.process.write(`${message}\n`);
+    processState.process.write(message);
+    await new Promise((resolve) => setTimeout(resolve, 50)); // 少し待機
+    processState.process.write("\r");
     return true;
   }
 
