@@ -3,10 +3,9 @@ import type {
   SlackAction,
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
-import { createProcessKey, stopProcess } from "../core/codex/manager";
+import { createProcessKey, stopProcess } from "../core/process";
 import { logger } from "../infrastructure/logger/logger";
-import type { ProcessKey } from "../types";
-import type { ProcessState } from "../core/codex/process";
+import type { ProcessKey, ProcessState } from "../types";
 
 export const handleStopButton = async ({
   ack,
@@ -33,7 +32,6 @@ export const handleStopButton = async ({
       return;
     }
 
-    // プロセスキー生成
     const processKey = createProcessKey(channel.id, message.ts);
 
     const [_, stopped] = stopProcess(processes, processKey);

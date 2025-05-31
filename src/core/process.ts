@@ -1,11 +1,7 @@
-import type { CodexClose, ProcessKey } from "../../types";
-import {
-  createProcess as createCodexProcess,
-  startProcess as startCodexProcess,
-  stopProcess as stopCodexProcess,
-  type ProcessState,
-  type ProcessHandlers,
-} from "./process";
+import { CONSTANTS } from "../infrastructure/config/constants";
+import type { CodexClose, ProcessKey, ProcessState } from "../types";
+import { processCodexOutput } from "../utils";
+import pty from "node-pty";
 
 // イベントハンドラ型定義
 export type EventHandlers = {
@@ -46,26 +42,45 @@ export const startProcess = (
   }
 
   const processKey = createProcessKey(channel, ts);
-  const processState = createCodexProcess(processKey, threadTs);
 
-  const newProcesses = new Map(processes);
-  newProcesses.set(processKey, processState);
-
-  // プロセスハンドラ設定
-  const codexHandlers: ProcessHandlers = {
-    onData: (data: string) => {
-      handlers.onData({ processKey, data });
-    },
-    onExit: (exitCode: number) => {
-      handlers.onClose({ channel, ts, code: exitCode });
-      newProcesses.delete(processKey);
-    },
+  const newProcessState = {
+    process: null,
+    id: processKey,
+    threadTs,
   };
+  processes.set(processKey, newProcessState);
 
-  const updatedState = startCodexProcess(processState, message, codexHandlers);
-  newProcesses.set(processKey, updatedState);
+  const args = [
+    "--provider",
+    "gemini",
+    "--model",
+    "gemini-2.0-flash",
+    "--approval-mode",
+    "full-auto",
+    message,
+  ];
 
-  return [newProcesses, updatedState];
+  const process = pty.spawn("codex", args, {
+    ...CONSTANTS.PTY_CONFIG,
+    env: {
+      ...global.process.env, // グローバルプロセスを使用
+      ...CONSTANTS.PTY_CONFIG.env,
+    },
+  });
+
+  process.onData((data: string) => {
+    const processedOutput = processCodexOutput(data);
+    handlers.onData({ processKey, data: processedOutput });
+  });
+
+  process.onExit(({ exitCode }) => {
+    handlers.onClose({ channel, ts, code: exitCode });
+    processes.delete(processKey);
+  });
+
+  processes.set(processKey, newProcessState);
+
+  return [processes, newProcessState];
 };
 
 // プロセス停止
@@ -78,14 +93,8 @@ export const stopProcess = (
     return [processes, false];
   }
 
-  const updatedState = stopCodexProcess(processState);
+  processState.process?.kill("SIGTERM");
+  processes.delete(processKey);
 
-  const newProcesses = new Map(processes);
-  if (updatedState.process === null) {
-    newProcesses.delete(processKey);
-  } else {
-    newProcesses.set(processKey, updatedState);
-  }
-
-  return [newProcesses, true];
+  return [processes, true];
 };

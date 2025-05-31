@@ -1,9 +1,8 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { extractMentionText, extractCodexOutput } from "../utils";
 import { logger } from "../infrastructure/logger/logger";
-import type { ProcessKey } from "../types";
-import { startProcess, type EventHandlers } from "../core/codex/manager";
-import type { ProcessState } from "../core/codex/process";
+import type { ProcessKey, ProcessState } from "../types";
+import { startProcess, type EventHandlers } from "../core/process";
 import { CONSTANTS } from "../infrastructure/config/constants";
 
 // 依存性注入用のハンドラ生成関数

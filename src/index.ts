@@ -3,8 +3,7 @@ import { initializeConfig } from "./infrastructure/config/env";
 import { logger } from "./infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
 import { handleStopButton } from "./handlers/buttonAction";
-import type { ProcessKey } from "./types";
-import type { ProcessState } from "./core/codex/process";
+import type { ProcessKey, ProcessState } from "./types";
 
 // アプリケーションを開始
 const startApp = async (): Promise<void> => {
