@@ -3,7 +3,7 @@ import { initializeConfig } from "./infrastructure/config/env";
 import { logger } from "./infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
 import { handleStopButton } from "./handlers/buttonAction";
-import type { ProcessKey, ProcessState } from "./types";
+import { ProcessManager } from "./core/processManager";
 
 // アプリケーションを開始
 const startApp = async (): Promise<void> => {
@@ -16,14 +16,13 @@ const startApp = async (): Promise<void> => {
       signingSecret: config.signingSecret,
       socketMode: true,
     });
-
-    const processes = new Map<ProcessKey, ProcessState>();
+    const processManager = new ProcessManager();
 
     app.event("app_mention", (args) =>
-      handleAppMention({ ...args, processes })
+      handleAppMention({ ...args, processManager })
     );
     app.action("stop_codex", (args) =>
-      handleStopButton({ ...args, processes })
+      handleStopButton({ ...args, processManager })
     );
 
     await app.start();

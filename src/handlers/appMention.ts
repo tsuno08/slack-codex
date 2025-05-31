@@ -1,18 +1,17 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { extractMentionText, extractCodexOutput } from "../utils";
 import { logger } from "../infrastructure/logger/logger";
-import type { ProcessKey, ProcessState } from "../types";
-import { startProcess, type EventHandlers } from "../core/process";
+import type { EventHandlers, ProcessManager } from "../types";
 import { CONSTANTS } from "../infrastructure/config/constants";
 
 // 依存性注入用のハンドラ生成関数
 export const handleAppMention = async ({
   event,
   client,
-  processes,
+  processManager,
 }: SlackEventMiddlewareArgs<"app_mention"> &
   AllMiddlewareArgs & {
-    processes: Map<ProcessKey, ProcessState>;
+    processManager: ProcessManager;
   }) => {
   try {
     const { channel, text, ts, thread_ts, user } = event;
@@ -81,7 +80,6 @@ export const handleAppMention = async ({
     try {
       const eventHandlers: EventHandlers = {
         onData: async ({ processKey, data }) => {
-          console.log(`data: ${data}`);
           try {
             const [channel, ts] = processKey.split("-");
 
@@ -139,30 +137,14 @@ export const handleAppMention = async ({
         },
       };
 
-      // 初期化処理 (純粋関数)
-      const initializeProcessHandling = () => {
-        return {
-          startProcess: (
-            message: string,
-            channel: string,
-            ts: string,
-            threadTs: string
-          ) => {
-            const [newProcesses] = startProcess(
-              processes,
-              message,
-              channel,
-              ts,
-              threadTs,
-              eventHandlers
-            );
-            processes = newProcesses; // 状態を新しいマップで更新
-          },
-        };
-      };
-
-      const processHandlers = initializeProcessHandling();
-      processHandlers.startProcess(task, channel, loadingMessage.ts, threadId);
+      // ProcessManagerを使用してプロセスを開始
+      processManager.startProcess(
+        task,
+        channel,
+        loadingMessage.ts,
+        threadId,
+        eventHandlers
+      );
     } catch (error) {
       logger.error("Failed to start Codex process", error as Error);
       await client.chat.postMessage({

@@ -3,18 +3,17 @@ import type {
   SlackAction,
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
-import { createProcessKey, stopProcess } from "../core/process";
 import { logger } from "../infrastructure/logger/logger";
-import type { ProcessKey, ProcessState } from "../types";
+import type { ProcessManager } from "../types";
 
 export const handleStopButton = async ({
   ack,
   body,
   client,
-  processes,
+  processManager,
 }: SlackActionMiddlewareArgs<SlackAction> &
   AllMiddlewareArgs & {
-    processes: Map<ProcessKey, ProcessState>;
+    processManager: ProcessManager;
   }) => {
   await ack();
 
@@ -32,9 +31,7 @@ export const handleStopButton = async ({
       return;
     }
 
-    const processKey = createProcessKey(channel.id, message.ts);
-
-    const [_, stopped] = stopProcess(processes, processKey);
+    const stopped = processManager.stopProcess(channel.id, message.ts);
 
     if (stopped) {
       await client.chat.update({
