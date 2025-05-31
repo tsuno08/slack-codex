@@ -47,7 +47,7 @@ const outputLog = (level: LogLevel, formatted: string): void => {
 };
 
 // ログ処理コア (カリー化関数)
-export const createLogger =
+const createLogger =
   (currentLevel: LogLevel) =>
   (level: LogLevel, message: string, ...args: LogArgument[]): void => {
     if (level < currentLevel) return;
@@ -56,28 +56,28 @@ export const createLogger =
   };
 
 // 各レベルのロガー関数 (ログレベル固定)
-export const debug =
+const debug =
   (currentLevel: LogLevel) =>
   (message: string, ...args: LogArgument[]) =>
     createLogger(currentLevel)(LogLevel.DEBUG, message, ...args);
 
-export const info =
+const info =
   (currentLevel: LogLevel) =>
   (message: string, ...args: LogArgument[]) =>
     createLogger(currentLevel)(LogLevel.INFO, message, ...args);
 
-export const warn =
+const warn =
   (currentLevel: LogLevel) =>
   (message: string, ...args: LogArgument[]) =>
     createLogger(currentLevel)(LogLevel.WARN, message, ...args);
 
-export const error =
+const error =
   (currentLevel: LogLevel) =>
   (message: string, ...args: LogArgument[]) =>
     createLogger(currentLevel)(LogLevel.ERROR, message, ...args);
 
 // デフォルトロガー生成関数
-export const createDefaultLogger = () => {
+const createDefaultLogger = () => {
   const level =
     process.env.NODE_ENV === "development" ? LogLevel.DEBUG : LogLevel.INFO;
 

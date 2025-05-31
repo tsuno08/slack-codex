@@ -2,11 +2,7 @@ import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { extractMentionText, extractCodexOutput } from "../utils";
 import { logger } from "../infrastructure/logger/logger";
 import type { ProcessKey } from "../types";
-import {
-  startProcess,
-  stopProcess,
-  type EventHandlers,
-} from "../core/codex/manager";
+import { startProcess, type EventHandlers } from "../core/codex/manager";
 import type { ProcessState } from "../core/codex/process";
 import { CONSTANTS } from "../infrastructure/config/constants";
 
@@ -45,17 +41,45 @@ export const handleAppMention = async ({
     const loadingMessage = await client.chat.postMessage({
       channel: channel,
       thread_ts: threadId,
-      text: "処理中...",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "Codexが処理を開始しました",
+          },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: {
+                type: "plain_text",
+                text: "Codexを停止",
+              },
+              action_id: "stop_codex",
+            },
+          ],
+        },
+      ],
     });
 
     if (!loadingMessage.ts) {
-      throw new Error("Failed to post initial message");
+      logger.warn("Failed to post initial loading message", {
+        channel,
+        user,
+        ts,
+      });
+      await client.chat.postMessage({
+        channel: channel,
+        text: "❌ ローディングメッセージの送信に失敗しました。",
+        thread_ts: ts,
+      });
+      return;
     }
 
     try {
-      const BOX_PATTERN_STRING = CONSTANTS.BOX_PATTERN;
-
-      // イベントハンドラの定義 (副作用関数)
       const eventHandlers: EventHandlers = {
         onData: async ({ processKey, data }) => {
           console.log(`data: ${data}`);
@@ -71,11 +95,32 @@ export const handleAppMention = async ({
               });
             }
 
-            if (data.includes(BOX_PATTERN_STRING)) {
+            if (data.includes(CONSTANTS.BOX_PATTERN)) {
               await client.chat.postMessage({
                 channel: channel,
                 thread_ts: ts,
-                text: "Codexが入力を待っています...",
+                blocks: [
+                  {
+                    type: "section",
+                    text: {
+                      type: "mrkdwn",
+                      text: "Codexが入力を待っています...",
+                    },
+                  },
+                  {
+                    type: "actions",
+                    elements: [
+                      {
+                        type: "button",
+                        text: {
+                          type: "plain_text",
+                          text: "Codexを停止",
+                        },
+                        action_id: "stop_codex",
+                      },
+                    ],
+                  },
+                ],
               });
             }
           } catch (error) {
@@ -113,12 +158,6 @@ export const handleAppMention = async ({
               eventHandlers
             );
             processes = newProcesses; // 状態を新しいマップで更新
-          },
-          stopProcess: (key: ProcessKey) => {
-            const [newProcesses, stopped] = stopProcess(processes, key);
-            if (stopped) {
-              processes = newProcesses;
-            }
           },
         };
       };
