@@ -75,7 +75,8 @@ export class ProcessManager implements IProcessManager {
     return newProcessState;
   }
 
-  stopProcess(processKey: ProcessKey): boolean {
+  stopProcess(channel: string, ts: string): boolean {
+    const processKey = this.createProcessKey(channel, ts);
     const processState = this.processes.get(processKey);
     if (!processState) return false;
 

@@ -1,4 +1,4 @@
-import { App } from "@slack/bolt";
+import { App, type ButtonAction, type BlockAction } from "@slack/bolt";
 import { initializeConfig } from "./infrastructure/config/env";
 import { logger } from "./infrastructure/logger/logger";
 import { handleAppMention } from "./handlers/appMention";
@@ -21,7 +21,7 @@ const startApp = async (): Promise<void> => {
     app.event("app_mention", (args) =>
       handleAppMention({ ...args, processManager })
     );
-    app.action("stop_codex", (args) =>
+    app.action<BlockAction<ButtonAction>>("stop_codex", (args) =>
       handleStopButton({ ...args, processManager })
     );
 

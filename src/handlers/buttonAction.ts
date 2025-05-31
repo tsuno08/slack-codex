@@ -1,6 +1,7 @@
 import type {
   AllMiddlewareArgs,
-  SlackAction,
+  BlockAction,
+  ButtonAction,
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
 import { logger } from "../infrastructure/logger/logger";
@@ -8,36 +9,32 @@ import type { ProcessManager } from "../types";
 
 export const handleStopButton = async ({
   ack,
+  action,
   body,
   client,
   processManager,
-}: SlackActionMiddlewareArgs<SlackAction> &
+}: SlackActionMiddlewareArgs<BlockAction<ButtonAction>> &
   AllMiddlewareArgs & {
     processManager: ProcessManager;
   }) => {
   await ack();
 
-  if (!("message" in body)) {
-    logger.error("Invalid action body: missing message data");
-    return;
-  }
-
   try {
     const channel = body.channel;
     const message = body.message;
+    const ts = action.value;
 
-    if (!channel?.id || !message?.ts) {
+    if (!channel?.id || !message?.ts || !ts) {
       logger.error("Missing channel or message data in stop button handler");
       return;
     }
 
-    const stopped = processManager.stopProcess(channel.id, message.ts);
+    const stopped = processManager.stopProcess(channel.id, ts);
 
     if (stopped) {
-      await client.chat.update({
+      await client.chat.delete({
         channel: channel.id,
         ts: message.ts,
-        text: "Codexプロセスを停止しました。",
       });
     } else {
       await client.chat.postEphemeral({
