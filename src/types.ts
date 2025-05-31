@@ -24,16 +24,5 @@ export type ProcessState = {
   process: pty.IPty;
   processKey: string;
   threadTs: string;
-};
-
-export type ProcessManager = {
-  startProcess(
-    message: string,
-    channel: string,
-    ts: string,
-    threadTs: string,
-    handlers: EventHandlers
-  ): ProcessState | null;
-  stopProcess(channel: string, ts: string): boolean;
-  findProcessByThreadTs(threadTs: string): ProcessState | undefined;
+  loadingMessageTs: string; // 入力待ちメッセージのタイムスタンプ
 };

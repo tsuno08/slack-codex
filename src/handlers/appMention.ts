@@ -1,10 +1,10 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
 import { extractMentionText, extractCodexOutput } from "../utils";
 import { logger } from "../infrastructure/logger/logger";
-import type { EventHandlers, ProcessManager } from "../types";
+import type { EventHandlers } from "../types";
 import { CONSTANTS } from "../infrastructure/config/constants";
+import type { ProcessManager } from "../core/processManager";
 
-// 依存性注入用のハンドラ生成関数
 export const handleAppMention = async ({
   event,
   client,
@@ -15,19 +15,19 @@ export const handleAppMention = async ({
   }) => {
   const { channel, text, ts, thread_ts, user } = event;
   logger.info("Received app mention", { channel, user, ts, thread_ts });
-  const task = extractMentionText(text);
+  const prompt = extractMentionText(text);
 
-  if (!task) {
-    logger.warn("Empty task received", { channel, user, ts });
+  if (!prompt) {
+    logger.warn("Empty prompt received", { channel, user, ts });
     await client.chat.postMessage({
       channel: channel,
-      text: "❌ タスクが指定されていません。メンションの後にタスクを記述してください。\n`help` とメンションすると使用方法を表示します。",
+      text: "❌ プロンプトが指定されていません。メンションの後にプロンプトを記述してください。\n`help` とメンションすると使用方法を表示します。",
       thread_ts: ts,
     });
     return;
   }
 
-  logger.info("Processing task", { task, channel, user, thread_ts });
+  logger.info("Processing prompt", { prompt, channel, user, thread_ts });
 
   // スレッドIDを決定 (イベントがスレッド内の場合は thread_ts を使用、そうでない場合は ts を使用)
   const threadId = thread_ts || ts;
@@ -47,7 +47,8 @@ export const handleAppMention = async ({
     ],
   });
 
-  if (!loadingMessage.ts) {
+  const loadingMessageTs = loadingMessage.ts;
+  if (!loadingMessageTs) {
     logger.warn("Failed to post initial loading message", {
       channel,
       user,
@@ -68,7 +69,16 @@ export const handleAppMention = async ({
 
         const codexOutput = extractCodexOutput(data);
         logger.info("Codex output received", { codexOutput, channel, ts });
+
         if (codexOutput) {
+          const existingProcess = processManager.findProcessByThreadTs(ts);
+          if (existingProcess?.loadingMessageTs) {
+            await client.chat.delete({
+              channel: channel,
+              ts: existingProcess.loadingMessageTs,
+            });
+            processManager.setLoadingMessageTs(threadId, "");
+          }
           await client.chat.postMessage({
             channel: channel,
             thread_ts: ts,
@@ -123,20 +133,25 @@ export const handleAppMention = async ({
   };
 
   try {
-    // ProcessManagerを使用してプロセスを開始
-    processManager.startProcess(
-      task,
-      channel,
-      loadingMessage.ts,
-      threadId,
-      eventHandlers
-    );
+    processManager.setLoadingMessageTs(threadId, loadingMessageTs);
+    const existingProcess = processManager.findProcessByThreadTs(threadId);
+    if (existingProcess) {
+      processManager.writeToProcess(threadId, prompt);
+    } else {
+      processManager.startProcess(
+        prompt,
+        channel,
+        loadingMessageTs,
+        threadId,
+        eventHandlers
+      );
+    }
   } catch (error) {
     logger.error("Failed to start Codex process", error as Error);
     await client.chat.postMessage({
       channel: channel,
       text: "❌ Codexプロセスの起動に失敗しました。",
-      thread_ts: loadingMessage.ts,
+      thread_ts: loadingMessageTs,
     });
     return;
   }

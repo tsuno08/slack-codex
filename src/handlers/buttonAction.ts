@@ -5,7 +5,7 @@ import type {
   SlackActionMiddlewareArgs,
 } from "@slack/bolt";
 import { logger } from "../infrastructure/logger/logger";
-import type { ProcessManager } from "../types";
+import type { ProcessManager } from "../core/processManager";
 
 export const handleStopButton = async ({
   ack,

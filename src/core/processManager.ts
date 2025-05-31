@@ -1,13 +1,8 @@
-import type {
-  EventHandlers,
-  ProcessKey,
-  ProcessState,
-  ProcessManager as IProcessManager,
-} from "../types";
+import type { EventHandlers, ProcessKey, ProcessState } from "../types";
 import { spawn, type IPty } from "node-pty";
 import { cleanCodexOutput } from "../utils";
 
-export class ProcessManager implements IProcessManager {
+export class ProcessManager {
   private processes: Map<ProcessKey, ProcessState> = new Map();
 
   private createProcessKey(channel: string, ts: string): ProcessKey {
@@ -17,16 +12,11 @@ export class ProcessManager implements IProcessManager {
   startProcess(
     message: string,
     channel: string,
-    ts: string,
+    loadingMessageTs: string,
     threadTs: string,
     handlers: EventHandlers
   ): ProcessState | null {
-    const processKey = this.createProcessKey(channel, ts);
-
-    // 既存プロセスをスレッドIDでチェック
-    if (this.findProcessByThreadTs(threadTs)) {
-      return null;
-    }
+    const processKey = this.createProcessKey(channel, threadTs);
 
     const args = [
       "--provider",
@@ -57,7 +47,7 @@ export class ProcessManager implements IProcessManager {
 
     ptyProcess.onExit(({ exitCode }) => {
       try {
-        handlers.onClose({ channel, ts, code: exitCode });
+        handlers.onClose({ channel, ts: threadTs, code: exitCode });
       } catch (_error) {
         // エラーハンドリング（未使用変数をアンダースコア付きに変更）
       } finally {
@@ -69,10 +59,20 @@ export class ProcessManager implements IProcessManager {
       process: ptyProcess,
       processKey,
       threadTs,
+      loadingMessageTs,
     };
 
     this.processes.set(processKey, newProcessState);
     return newProcessState;
+  }
+
+  writeToProcess(threadTs: string, message: string): boolean {
+    const processState = this.findProcessByThreadTs(threadTs);
+    if (!processState) return false;
+
+    // メッセージの末尾に改行を追加してEnterキーを押したのと同じ効果にする
+    processState.process.write(`${message}\n`);
+    return true;
   }
 
   stopProcess(channel: string, ts: string): boolean {
@@ -92,5 +92,16 @@ export class ProcessManager implements IProcessManager {
       }
     }
     return undefined;
+  }
+
+  setLoadingMessageTs(threadTs: string, loadingMessageTs: string): boolean {
+    const process = this.findProcessByThreadTs(threadTs);
+    if (!process) return false;
+
+    this.processes.set(process.processKey, {
+      ...process,
+      loadingMessageTs,
+    });
+    return true;
   }
 }
