@@ -13,16 +13,17 @@ export type EventHandlers = {
   onClose: (close: CodexClose) => void;
 };
 
-// スレッドTSとプロセスキーのマッピング
-const threadIndex = new Map<string, ProcessKey>();
-
-// スレッドTSでプロセス検索 (O(1)に最適化)
+// スレッドTSでプロセス検索
 export const findProcessByThreadTs = (
   processes: Map<ProcessKey, ProcessState>,
   threadTs: string
 ): ProcessState | undefined => {
-  const processKey = threadIndex.get(threadTs);
-  return processKey ? processes.get(processKey) : undefined;
+  for (const process of processes.values()) {
+    if (process.threadTs === threadTs) {
+      return process;
+    }
+  }
+  return undefined;
 };
 
 // プロセスキー生成
@@ -49,7 +50,6 @@ export const startProcess = (
 
   const newProcesses = new Map(processes);
   newProcesses.set(processKey, processState);
-  threadIndex.set(threadTs, processKey);
 
   // プロセスハンドラ設定
   const codexHandlers: ProcessHandlers = {
@@ -83,7 +83,6 @@ export const stopProcess = (
   const newProcesses = new Map(processes);
   if (updatedState.process === null) {
     newProcesses.delete(processKey);
-    threadIndex.delete(processState.threadTs);
   } else {
     newProcesses.set(processKey, updatedState);
   }

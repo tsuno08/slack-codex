@@ -1,5 +1,5 @@
 import type { AllMiddlewareArgs, SlackEventMiddlewareArgs } from "@slack/bolt";
-import { extractMentionText } from "../utils";
+import { extractMentionText, extractCodexOutput } from "../utils";
 import { logger } from "../infrastructure/logger/logger";
 import type { ProcessKey } from "../types";
 import {
@@ -8,6 +8,7 @@ import {
   type EventHandlers,
 } from "../core/codex/manager";
 import type { ProcessState } from "../core/codex/process";
+import { CONSTANTS } from "../infrastructure/config/constants";
 
 // 依存性注入用のハンドラ生成関数
 export const handleAppMention = async ({
@@ -52,8 +53,7 @@ export const handleAppMention = async ({
     }
 
     try {
-      const BOX_PATTERN_STRING =
-        "╭──────────────────────────────────────────────────────────────────────────────╮\n│                                                                              │\n╰──────────────────────────────────────────────────────────────────────────────╯";
+      const BOX_PATTERN_STRING = CONSTANTS.BOX_PATTERN;
 
       // イベントハンドラの定義 (副作用関数)
       const eventHandlers: EventHandlers = {
@@ -62,14 +62,12 @@ export const handleAppMention = async ({
           try {
             const [channel, ts] = processKey.split("-");
 
-            const codexRegex =
-              /codex\s([\s\S]*)╭──────────────────────────────────────────────────────────────────────────────╮/;
-            const codexMatch = codexRegex.exec(data);
-            if (codexMatch?.[1]) {
+            const codexOutput = extractCodexOutput(data);
+            if (codexOutput) {
               await client.chat.postMessage({
                 channel: channel,
                 thread_ts: ts,
-                text: codexMatch[1],
+                text: codexOutput,
               });
             }
 

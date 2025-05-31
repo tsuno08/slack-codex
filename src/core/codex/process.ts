@@ -1,6 +1,6 @@
 import { CONSTANTS } from "../../infrastructure/config/constants";
 import type { ProcessKey } from "../../types";
-import { cleanCodexOutput, processCodexOutput } from "../../utils";
+import { processCodexOutput } from "../../utils";
 
 interface ProcessInstance {
   onData: (callback: (data: string) => void) => void;
@@ -76,8 +76,7 @@ export const startProcess = (
 
   processInstance.onData((data: string) => {
     const processedOutput = processCodexOutput(data);
-    const cleanedOutput = cleanCodexOutput(processedOutput);
-    handlers.onData(cleanedOutput);
+    handlers.onData(processedOutput);
   });
 
   processInstance.onExit((exitCode: number, signal?: number) => {

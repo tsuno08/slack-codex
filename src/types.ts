@@ -8,15 +8,6 @@ export type CodexClose = {
 };
 
 // プロセス管理オブジェクトの型
-export type ProcessManager = {
-  startProcess: (
-    message: string,
-    channel: string,
-    ts: string,
-    threadTs: string
-  ) => void;
-};
-
 export type Logger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
   warn: (message: string, meta?: Record<string, unknown>) => void;
