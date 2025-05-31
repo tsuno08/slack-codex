@@ -4,9 +4,8 @@ import type {
   ProcessState,
   ProcessManager as IProcessManager,
 } from "../types";
-import pty from "node-pty";
-import { CONSTANTS } from "../infrastructure/config/constants";
-import { processCodexOutput } from "../utils";
+import { spawn, type IPty } from "node-pty";
+import { cleanCodexOutput } from "../utils";
 
 export class ProcessManager implements IProcessManager {
   private processes: Map<ProcessKey, ProcessState> = new Map();
@@ -39,20 +38,24 @@ export class ProcessManager implements IProcessManager {
       message,
     ];
 
-    const process = pty.spawn("codex", args, {
-      ...CONSTANTS.PTY_CONFIG,
-      env: {
-        ...global.process.env,
-        ...CONSTANTS.PTY_CONFIG.env,
-      },
-    });
+    let ptyProcess: IPty | null = null;
+    try {
+      ptyProcess = spawn("codex", args, {
+        env: {
+          ...global.process.env,
+        },
+      });
+    } catch (error) {
+      console.error("[DEBUG] pspawn error:", error as Error);
+      return null;
+    }
 
-    process.onData((data: string) => {
-      const processedOutput = processCodexOutput(data);
+    ptyProcess.onData((data: string) => {
+      const processedOutput = cleanCodexOutput(data);
       handlers.onData({ processKey, data: processedOutput });
     });
 
-    process.onExit(({ exitCode }) => {
+    ptyProcess.onExit(({ exitCode }) => {
       try {
         handlers.onClose({ channel, ts, code: exitCode });
       } catch (_error) {
@@ -63,7 +66,7 @@ export class ProcessManager implements IProcessManager {
     });
 
     const newProcessState: ProcessState = {
-      process,
+      process: ptyProcess,
       processKey,
       threadTs,
     };

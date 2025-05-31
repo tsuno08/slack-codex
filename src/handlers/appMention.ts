@@ -84,6 +84,7 @@ export const handleAppMention = async ({
             const [channel, ts] = processKey.split("-");
 
             const codexOutput = extractCodexOutput(data);
+            console.log(`[DEBUG] Processed Codex output: ${codexOutput}, data: ${data}`);
             if (codexOutput) {
               await client.chat.postMessage({
                 channel: channel,
